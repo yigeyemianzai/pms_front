@@ -1,0 +1,1094 @@
+<template>
+  <div class="device_detail">
+    <el-form :inline="true" :model="dataForm" @keyup.enter.native="getDataList()">
+      <el-form-item>
+        <el-cascader :options="sysOptons" v-model="selectSys" @change="sysChange" placeholder="选择系统">
+        </el-cascader>
+      </el-form-item>
+      <el-form-item>
+        <el-input v-model="searchCon" placeholder="输入设备名称" clearable></el-input>
+      </el-form-item>
+      <el-form-item>
+        <el-button @click="getDataList()">查询</el-button>
+        <el-button v-if="isAuth(OPTAUTH_ADD)" type="primary" @click="addOrUpdateHandle()">新增</el-button>
+        <el-button v-if="isAuth(OPTAUTH_DELETE)" type="danger" @click="deleteHandle()" :disabled="dataListSelections.length <= 0">批量删除</el-button>
+      </el-form-item>
+    </el-form>
+    <!-- <lazy-tree :data="treeData" @loadNode="loadNodes"></lazy-tree> -->
+    <tree-grid :treeStructure="true" :columns="columns" :data-source="dataList" @deleteRow="deleteHandle" @changeHandle="addOrUpdateHandle"
+      @selection="selectionChangeHandle" v-loading="dataListLoading" isDataSet>
+    </tree-grid>
+    <el-tree :props="props1" :load="loadNode" ref="tree" lazy node-key highlight-current @node-click="handleNodeClick">
+    </el-tree>
+    <div class="clearfix"></div>
+    <el-pagination @size-change="sizeChangeHandle" @current-change="currentChangeHandle" :current-page="pageIndex"
+      :page-sizes="[10, 20, 50, 100]" :page-size="pageSize" :total="totalPage" layout="total, sizes, prev, pager, next, jumper">
+    </el-pagination>
+    <!-- 弹窗, 新增 / 修改 -->
+    <el-dialog :title="!dataForm.equipId ? '新增' : '修改'" :close-on-click-modal="false" ref="addOrUpdate" :visible.sync="visible"
+      :close="cancel">
+      <el-form :model="dataForm" :rules="dataRule" ref="dataForm" @keyup.enter.native="dataFormSubmit()" label-width="100px">
+
+        <!-- 具体的设备设置 -->
+        <!-- 配电 -->
+        <div class="distribution" v-if="currentFormSys==1 ">
+          <el-form-item label="额定功率" prop="nomP">
+            <el-input-number v-model="dataForm.nomP" :step="1" :min=0 :max=100>%</el-input-number>
+          </el-form-item>
+          <el-form-item label="额定电压" prop="nomV">
+            <el-input-number v-model="dataForm.nomV" :step="1" :min=0>V</el-input-number>
+          </el-form-item>
+          <el-form-item label="额定电流" prop="nomC">
+            <el-input-number v-model="dataForm.nomC" :step="1" :min=0>A</el-input-number>
+          </el-form-item>
+        </div>
+        <!-- 电蓄热锅炉 -->
+        <div class="electricHeat" v-if="currentFormSys==5">
+          <el-form-item label="工作模式" prop="workMode">
+            <el-select v-model="dataForm.workMode" placeholder="请选择">
+              <el-option v-for="item in workModeOptions" :key="item.value" :label="item.label" :value="item.value">
+              </el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="额定功率" prop="nomP">
+            <el-input-number v-model="dataForm.nomP" :step="1" :min=0 :max=100>%</el-input-number>
+          </el-form-item>
+          <el-form-item label="最大功率" prop="maxP">
+            <el-input-number v-model="dataForm.maxP" :step="1" :min=0 :max=100>%</el-input-number>
+          </el-form-item>
+          <el-form-item label="最小功率" prop="minP">
+            <el-input-number v-model="dataForm.minP" :step="1" :min=0 :max=100>%</el-input-number>
+          </el-form-item>
+          <el-form-item label="额定电压" prop="nomV">
+            <el-input v-model="dataForm.nomV" placeholder=""></el-input>
+          </el-form-item>
+          <el-form-item label="额定电流" prop="nomC">
+            <el-input v-model="dataForm.nomC" placeholder=""></el-input>
+          </el-form-item>
+          <el-form-item label="额定蓄热量" prop="nomJoule">
+            <el-input v-model="dataForm.nomJoule" placeholder="">J</el-input>
+          </el-form-item>
+          <el-form-item label="额定频率" prop="nomF">
+            <el-input v-model="dataForm.nomF" placeholder=""></el-input>
+          </el-form-item>
+          <el-form-item label="额定内压" prop="nomPressure">
+            <el-input v-model="dataForm.nomPressure" placeholder="">Pa</el-input>
+          </el-form-item>
+          <el-form-item label="热水容量" prop="nomCapacity">
+            <el-input v-model="dataForm.nomCapacity" placeholder="">L</el-input>
+          </el-form-item>
+          <el-form-item label="额定蓄热温度" prop="nomTemp">
+            <el-input v-model="dataForm.nomTemp" placeholder=""></el-input>
+          </el-form-item>
+          <el-form-item label="防护等级" prop="protectionRank">
+            <el-input v-model="dataForm.protectionRank" placeholder=""></el-input>
+          </el-form-item>
+          <el-form-item label="蓄热材料体积" prop="mediaVolume">
+            <el-input v-model="dataForm.mediaVolume" placeholder=""></el-input>
+          </el-form-item>
+          <el-form-item label="蓄热材料密度" prop="mediaDensity">
+            <el-input v-model="dataForm.mediaDensity" placeholder=""></el-input>
+          </el-form-item>
+          <el-form-item label="蓄热材料比热容" prop="mediaShy">
+            <el-input v-model="dataForm.mediaShy" placeholder=""></el-input>
+          </el-form-item>
+        </div>
+        <!-- 分布式光伏 -->
+        <div class="distributedPV" v-if="currentFormSys==64">
+          <el-form-item label="最大输出功率" prop="maxP">
+            <el-input-number v-model="dataForm.maxP" :step="1" :min=0 :max=100>%</el-input-number>
+          </el-form-item>
+          <el-form-item label="额定电压" prop="nomV">
+            <el-input-number v-model="dataForm.nomV" :step="1" :min=0>V</el-input-number>
+          </el-form-item>
+          <el-form-item label="额定电流" prop="nomC">
+            <el-input-number v-model="dataForm.nomC" :step="1" :min=0>A</el-input-number>
+          </el-form-item>
+          <el-form-item label="额定频率" prop="nomF">
+            <el-input v-model="dataForm.nomF" placeholder=""></el-input>
+          </el-form-item>
+        </div>
+        <!-- 分布式储能 -->
+        <div class="distributedEnergyStorage" v-if="currentFormSys==128">
+          <el-form-item label="电池容量" prop="nomCapacity">
+            <el-input v-model="dataForm.nomCapacity" placeholder=""></el-input>
+          </el-form-item>
+          <el-form-item label="soc门限下限值" prop="minSoc">
+            <el-input v-model="dataForm.minSoc" placeholder=""></el-input>
+          </el-form-item>
+          <el-form-item label="soc门限上限值" prop="maxSoc2">
+            <el-input v-model="dataForm.maxSoc2" placeholder=""></el-input>
+          </el-form-item>
+          <el-form-item label="效率" prop="efficiency">
+            <el-input v-model="dataForm.efficiency" placeholder="">%</el-input>
+          </el-form-item>
+          <el-form-item label="最小输出电压" prop="minV">
+            <el-input v-model="dataForm.minV" placeholder=""></el-input>
+          </el-form-item>
+          <el-form-item label="最大输出电压" prop="maxV">
+            <el-input v-model="dataForm.maxV" placeholder=""></el-input>
+          </el-form-item>
+          <el-form-item label="额定电压" prop="nomV">
+            <el-input v-model="dataForm.nomV" placeholder=""></el-input>
+          </el-form-item>
+          <el-form-item label="最大充电电压" prop="maxChargeV">
+            <el-input v-model="dataForm.maxChargeV" placeholder=""></el-input>
+          </el-form-item>
+          <el-form-item label="持续充放电功率" prop="continutyP">
+            <el-input v-model="dataForm.continutyP" placeholder=""></el-input>
+          </el-form-item>
+          <el-form-item label="冷却方式" prop="coolMethod">
+            <el-select v-model="dataForm.coolMethod" placeholder="请选择">
+              <el-option v-for="item in coolMethodOptions" :key="item.value" :label="item.label" :value="item.value">
+              </el-option>
+            </el-select>
+          </el-form-item>
+        </div>
+        <!-- 燃气蓄热锅炉 -->
+        <div class="gasFiredBoiler" v-if="currentFormSys==6">
+
+        </div>
+        <!-- 插座 -->
+        <div class="socket" v-if="currentFormSys==4">
+          <el-form-item label="连接负荷类型" prop="loadType">
+            <el-input v-model="dataForm.loadType" placeholder=""></el-input>
+          </el-form-item>
+          <el-form-item label="最大电流" prop="maxA">
+            <el-input-number v-model="dataForm.maxA" :step="1" :min=0>A</el-input-number>
+          </el-form-item>
+          <el-form-item label="额定电压" prop="nomV">
+            <el-input-number v-model="dataForm.nomV" :step="1" :min=0>V</el-input-number>
+          </el-form-item>
+        </div>
+        <!-- 电开水炉 -->
+        <div class="waterBoiler" v-if="currentFormSys==7">
+
+        </div>
+        <!-- 水设备 -->
+        <div class="waterEquipment" v-if="currentFormSys==512">
+
+        </div>
+        <!-- 地源热泵设备 -->
+        <div class="GSHP" v-if="currentFormSys==8">
+
+        </div>
+        <!-- 气设备 -->
+        <div class="gasEquipment" v-if="currentFormSys==1024">
+
+        </div>
+        <!-- 空气源热泵设备 -->
+        <div class="ASHP" v-if="currentFormSys==9">
+
+        </div>
+        <!-- 冰蓄冷设备 -->
+        <div class="iceStorage" v-if="currentFormSys==10">
+
+        </div>
+        <!-- 空调设备 -->
+        <div class="airConditioner" v-if="subSystemCode==1||subSystemCode==2||subSystemCode==3||subSystemCode==4">
+          <el-form-item label="空调类型" prop="acWay">
+            <el-select v-model="dataForm.acWay" placeholder="请选择">
+              <el-option v-for="item in acWayOptions" :key="item.value" :label="item.label" :value="item.value">
+              </el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="工作模式" prop="acMode">
+            <el-select v-model="dataForm.acMode" placeholder="请选择">
+              <el-option v-for="item in acModeOptions" :key="item.value" :label="item.label" :value="item.value">
+              </el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="系统类型" prop="acType">
+            <el-select v-model="dataForm.acType" placeholder="请选择">
+              <el-option v-for="item in acTypeOptions" :key="item.value" :label="item.label" :value="item.value">
+              </el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="制冷额定功率" prop="nomCoolP">
+            <el-input-number v-model="dataForm.nomCoolP" :step="1" :min=0>P</el-input-number>
+          </el-form-item>
+          <el-form-item label="制热额定功率" prop="nomHeatP">
+            <el-input-number v-model="dataForm.nomHeatP" :step="1" :min=0>P</el-input-number>
+          </el-form-item>
+          <el-form-item label="额定电压" prop="nomV">
+            <el-input-number v-model="dataForm.nomV" :step="1" :min=0>V</el-input-number>
+          </el-form-item>
+          <el-form-item label="额定电流" prop="nomC">
+            <el-input-number v-model="dataForm.nomC" :step="1" :min=0>A</el-input-number>
+          </el-form-item>
+          <el-form-item label="额定频率" prop="nomF">
+            <el-input-number v-model="dataForm.nomF" :step="1" :min=0>Hz</el-input-number>
+          </el-form-item>
+          <el-form-item label="制冷效率" prop="eer">
+            <el-input-number v-model="dataForm.eer" :step="1" :min=0></el-input-number>
+          </el-form-item>
+          <el-form-item label="制热效率" prop="cop">
+            <el-input-number v-model="dataForm.cop" :step="1" :min=0></el-input-number>
+          </el-form-item>
+          <el-form-item label="负荷率限定值" prop="loadRateLimit">
+            <el-input-number v-model="dataForm.loadRateLimit" :step="1" :min=0></el-input-number>
+          </el-form-item>
+          <el-form-item label="室内制冷" prop="roomArea">
+            <el-input-number v-model="dataForm.roomArea" :step="1" :min=0>㎡</el-input-number>
+          </el-form-item>
+          <el-form-item label="能量损失系数" prop="lossFactor">
+            <el-input-number v-model="dataForm.lossFactor" :step="0.1" :min=0></el-input-number>
+          </el-form-item>
+          <el-form-item label="是否支持变频" prop="freCon" class="radioWid">
+            <el-radio v-model="dataForm.freCon" label="0">不支持</el-radio>
+            <el-radio v-model="dataForm.freCon" label="1">支持</el-radio>
+          </el-form-item>
+          <el-form-item label="控制模式" prop="conMethod">
+            <el-select v-model="dataForm.conMethod" placeholder="请选择">
+              <el-option v-for="item in conMethodOptions" :key="item.value" :label="item.label" :value="item.value">
+              </el-option>
+            </el-select>
+          </el-form-item>
+
+
+        </div>
+        <!-- 照明设备 -->
+        <div class="lighting" v-if="currentFormSys==2">
+          <el-form-item label="额定功率" prop="nomPw">
+            <el-input-number v-model="dataForm.nomPw" :step="1" :min=0></el-input-number>
+          </el-form-item>
+          <el-form-item label="额定电压" prop="nomV">
+            <el-input-number v-model="dataForm.nomV" :step="1" :min=0>V</el-input-number>
+          </el-form-item>
+        </div>
+        <!-- 充电桩设备 -->
+        <div class="chargingPile" v-if="currentFormSys==256">
+          <el-form-item label="能量补给类型" prop="energyType">
+            <el-select v-model="dataForm.energyType" placeholder="请选择">
+              <el-option v-for="item in energyTypeOptions" :key="item.value" :label="item.label" :value="item.value">
+              </el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="额定功率" prop="nomPw">
+            <el-input-number v-model="dataForm.nomPw" :step="1" :min=0></el-input-number>
+          </el-form-item>
+          <el-form-item label="最小电压" prop="minV">
+            <el-input-number v-model="dataForm.minV" :step="1" :min=0>V</el-input-number>
+          </el-form-item>
+          <el-form-item label="最大电压" prop="maxV">
+            <el-input-number v-model="dataForm.maxV" :step="1" :min=0>V</el-input-number>
+          </el-form-item>
+          <el-form-item label="额定电流" prop="nomC">
+            <el-input-number v-model="dataForm.nomC" :step="1" :min=0>V</el-input-number>
+          </el-form-item>
+          <el-form-item label="软件版本号" prop="softVer">
+            <el-input v-model="dataForm.softVer" placeholder=""></el-input>
+          </el-form-item>
+        </div>
+
+      </el-form>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="cancel">取消</el-button>
+        <el-button type="primary" @click="dataFormSubmit()">确定</el-button>
+      </span>
+    </el-dialog>
+
+  </div>
+</template>
+
+<script>
+  import treeGrid from '@/components/tree-grid'
+  import lazyTree from '@/components/lazy-tree'
+  import TableTreeColumn from '@/components/table-tree-column'
+  export default {
+    components: {
+      treeGrid,
+      lazyTree,
+      TableTreeColumn
+    },
+    data() {
+      return {
+        //主要信息列展示
+        columns: [],
+        
+        //   isDetail:true,
+        //   detailSwitch : false,
+        currentFormSys: "", //当前修改|增加联级框选择的最后一层系统
+        searchCon: '', //搜索内容
+        systemCode: null,
+        subSystemCode: null,
+        clickNode: null,
+        selectSys: [],
+        selectEquipType: null,
+        selectComm: null,
+        props1: {
+          label: 'name',
+          children: 'zones',
+          isLeaf: !'leaf'
+        },
+
+        treeData: [],
+
+        workModeOptions: [{
+          value: '1',
+          label: '速热'
+        }, {
+          value: '2',
+          label: '快热'
+        }, {
+          value: '3',
+          label: '经济'
+        }, {
+          value: '4',
+          label: '保温'
+        }],
+        coolMethodOptions: [{
+          value: '1',
+          label: '水冷'
+        }],
+        acWayOptions: [{
+          value: '1',
+          label: '集中式'
+        }, {
+          value: '2',
+          label: '分散式'
+        }],
+        acModeOptions: [{
+          value: '1',
+          label: '制冷'
+        }, {
+          value: '2',
+          label: '制热'
+        }, {
+          value: '3',
+          label: '通风'
+        }, {
+          value: '4',
+          label: '除湿'
+        }],
+        acTypeOptions: [{
+          value: '1',
+          label: '水冷'
+        }, {
+          value: '2',
+          label: '风冷'
+        }, {
+          value: '3',
+          label: '多联机'
+        }],
+        conMethodOptions: [{
+          value: '1',
+          label: '本地控制'
+        }, {
+          value: '2',
+          label: '远程控制'
+        }],
+        energyTypeOptions: [{
+          value: '1',
+          label: '单项交流'
+        }, {
+          value: '2',
+          label: '三相交流'
+        }, {
+          value: '3',
+          label: '直流'
+        }],
+        radio: '',
+
+        //设备子表表单数据
+        dataForm: {
+          "equipId":null,
+          "nomP": null,
+          "nomV": null,
+          "nomC": null,
+          "workMode": null,
+          "maxP": null,
+          "minP": null,
+          "nomJoule": null,
+          "nomF": null,
+          "nomPressure": null,
+          "nomCapacity": null,
+          "nomTemp": null,
+          "protectionRank": null,
+          "mediaVolume": null,
+          "mediaDensity": null,
+          "mediaShy": null,
+          "minSoc": null,
+          "maxSoc2": null,
+          "efficiency": null,
+          "minV": null,
+          "maxV": null,
+          "maxChargeV": null,
+          "continutyP": null,
+          "coolMethod": null,
+          "loadType": null,
+          "maxA": null,
+          "acWay": null,
+          "acMode": null,
+          "acType": null,
+          "nomCoolP": null,
+          "nomHeatP": null,
+          "eer": null,
+          "cop": null,
+          "loadRateLimit": null,
+          "roomArea": null,
+          "lossFactor": null,
+          "freCon": null,
+          "conMethod": null,
+          "nomPw": null,
+          "energyType": null,
+          "softVer": null,
+
+        },
+        dataSetForm: {},
+        dataList: [],
+        pageIndex: 1,
+        pageSize: 10,
+        totalPage: 0,
+        dataListLoading: false,
+        dataListSelections: [],
+        addOrUpdateVisible: false,
+        options1: [],
+        selectedOptions1: '',
+        sysOptons: [],
+        visible: false, //信息配置
+        dataRule: {
+          equipName: [{
+            required: true,
+            message: '设备名不能为空',
+            trigger: 'blur'
+          }],
+
+        },
+        isFirst:true,
+        cuId:"",
+        cuType:'',
+        iid:"",
+        oldNode :{},
+       oldResolve :function(){
+
+       }
+
+      }
+    },
+
+    created() {
+      this.init()
+    },
+    mounted () {
+      this.getDataList()
+    },
+    methods: {
+
+      //搜索条件数据
+      init() {
+        this.$http({
+          url: this.$http.adornUrl('/admin/tequip/condition/system'),
+          method: 'post',
+          data: this.$http.adornData({
+            "orgId": this.$store.state.user.orgId
+          })
+        }).then(({
+          data
+        }) => {
+          if (data && data.code == 0) {
+            this.sysOptons = data.list
+          }
+        })
+
+        // this.$http({
+        //   url: this.$http.adornUrl('/admin/tequip/child/system'),
+        //   method: 'post',
+        // }).then(({
+        //   data
+        // }) => {
+        //   if (data && data.code == 0) {
+        //     this.selectSys = data.list
+
+        //     if (this.selectSys.length > 1) {
+        //       this.systemCode = this.selectSys[0]
+        //       this.subSystemCode = this.selectSys[this.selectSys.length - 1]
+        //     } else {
+        //       this.systemCode = this.selectSys[0]
+        //       this.subSystemCode = null
+        //     }
+            
+        //   }
+        // })
+        
+          this.$http({
+          url: this.$http.adornUrl('/admin/tequip/child/system'),
+          method: 'post',
+        }).then(({
+          data
+        }) => {
+          if (data && data.code == 0) {
+            this.selectSys = data.list
+            if(this.selectSys[0]=="10000004"){
+              this.currentFormSys = this.selectSys[0]
+            }else{
+              this.currentFormSys = this.selectSys[ this.selectSys.length - 1]
+            }
+            if (this.selectSys.length > 1) {
+              this.systemCode = this.selectSys[0]
+              this.subSystemCode = this.selectSys[this.selectSys.length - 1]
+            } else {
+              this.systemCode = this.selectSys[0]
+              this.subSystemCode = null
+            }
+            this.$http({
+              url: this.$http.adornUrl('/admin/tequip/child/equipChildren'),
+              method: 'post',
+              data: this.$http.adornData({
+                "systemCode":  this.systemCode == null?null:this.systemCode.toString(),
+                "subSystemCode":  this.subSystemCode == null?null:this.subSystemCode.toString(),
+              })
+            }).then(({
+              data
+            }) => {
+              if (data && data.code == 0) {
+                this.columns = data.list
+              }
+            })
+          }
+        })
+       
+      },
+
+      //搜索条件数据-组织机构
+      handleChange1(value) {
+        console.log(value);
+      },
+      //检索条件-系统
+      sysChange(value) {
+        // if(this.selectSys[0]=="8"){
+        //       this.currentFormSys = this.selectSys[0]
+        //     }else{
+              this.currentFormSys = this.selectSys[ this.selectSys.length - 1]
+            // }
+            if (this.selectSys.length > 1) {
+          this.systemCode = this.selectSys[0]
+          this.subSystemCode = this.selectSys[this.selectSys.length - 1]
+        } else {
+          this.systemCode = this.selectSys[0]
+          this.subSystemCode = null
+        }
+        this.oldNode.childNodes = []
+        this.loadNode(this.oldNode,this.oldResolve)
+        this.$http({
+              url: this.$http.adornUrl('/admin/tequip/child/equipChildren'),
+              method: 'post',
+              data: this.$http.adornData({
+                "systemCode": this.systemCode == null?null:this.systemCode.toString(),
+                "subSystemCode": this.subSystemCode == null?null:this.subSystemCode.toString(),
+              })
+            }).then(({
+              data
+            }) => {
+              if (data && data.code == 0) {
+                this.columns = data.list
+              }
+            })
+      },
+
+      // 获取数据列表
+      getDataList() {
+        // if(this.isFirst==true){
+        //     this.isFirst =false
+          /*   this.$http({
+          url: this.$http.adornUrl('/admin/tequip/child/system'),
+          method: 'post',
+        }).then(({
+          data
+        }) => {
+          if (data && data.code == 0) {
+            this.selectSys = data.list
+            if(this.selectSys[0]=="10000004"){
+              this.currentFormSys = this.selectSys[0]
+            }else{
+              this.currentFormSys = this.selectSys[ this.selectSys.length - 1]
+            }
+            if (this.selectSys.length > 1) {
+              this.systemCode = this.selectSys[0]
+              this.subSystemCode = this.selectSys[this.selectSys.length - 1]
+            } else {
+              this.systemCode = this.selectSys[0]
+              this.subSystemCode = null
+            }
+            this.$http({
+              url: this.$http.adornUrl('/admin/tequip/child/equipChildren'),
+              method: 'post',
+              data: this.$http.adornData({
+                "systemCode": this.systemCode,
+                "subSystemCode": this.subSystemCode,
+              })
+            }).then(({
+              data
+            }) => {
+              if (data && data.code == 0) {
+                this.columns = data.list
+              }
+            })
+          }
+        }) */
+      
+      // }else{
+        
+
+        this.dataListLoading = true
+        this.$http({
+          url: this.$http.adornUrl('/admin/tequip/child/list'),
+          // url: this.$http.adornUrl('/management/device-info/devices'),
+          method: 'post',
+          data: this.$http.adornData({
+            'page': this.pageIndex.toString(),
+            'limit': this.pageSize.toString(),
+            "systemCode": this.systemCode == null?null:this.systemCode.toString(),
+            "subSystemCode": this.subSystemCode == null?null:this.subSystemCode.toString(),
+            // "id": this.clickNode
+
+          })
+        }).then(({
+          data
+        }) => {
+          if (data && data.code == 0) {
+            // this.dataList = data.page.list
+            this.dataList = data.page.list
+            this.totalPage = data.page.totalCount
+          } else {
+            this.dataList = []
+            this.totalPage = 0
+          }
+          this.dataListLoading = false
+        })
+      // }
+
+         
+      },
+      // 每页数
+      sizeChangeHandle(val) {
+        this.pageSize = val
+        this.pageIndex = 1
+        this.getDataList()
+      },
+      // 当前页
+      currentChangeHandle(val) {
+        this.pageIndex = val
+        this.getDataList()
+      },
+      // 多选
+      selectionChangeHandle(val) {
+        this.dataListSelections = val
+      },
+      // 新增 / 修改
+      addOrUpdateHandle(row) {
+        this.$nextTick(() => {
+          
+          if(row){
+          this.dataForm.equipId = row.equipId
+          }else{
+            this.dataForm.equipId = 0
+          }
+          
+          this.$nextTick(() => {
+        this.$refs['dataForm'].resetFields()
+
+            this.selectedOptions1 = []
+          })
+          //修改
+          if (this.dataForm.equipId) {
+
+          this.visible = true
+           console.log(row)
+
+
+            /* this.$http({
+              url: this.$http.adornUrl('/admin/tequip/info'),
+              method: 'post',
+              data: this.$http.adornParams({
+                "equipId": row.equipId
+              })
+            }).then(({
+              data
+            }) => {
+              if (data && data.code === 0) { */
+                this.dataForm.equipId = row.equipId
+                this.dataForm.nomP =row.nomP ==null ?null:row.nomP
+                this.dataForm.nomV = row.nomV ==null ?null:row.nomV
+                this.dataForm.nomC = row.nomC ==null ?null:row.nomC
+                this.dataForm.workMode = row.workMode ==null ?null:row.workMode
+                this.dataForm.maxP = row.maxP ==null ?null:row.maxP
+                this.dataForm.minP = row.minP ==null ?null:row.minP
+                this.dataForm.nomJoule = row.nomJoule ?null:row.nomJoule
+                this.dataForm.nomF = row.nomF ==null ?null:row.nomF
+                this.dataForm.nomPressure = row.nomPressure ==null ?null:row.nomPressure
+                this.dataForm.nomCapacity = row.nomCapacity ==null ?null:row.nomCapacity
+                this.dataForm.nomTemp = row.nomTemp ==null ?null:row.nomTemp
+                this.dataForm.protectionRank = row.protectionRank ==null ?null:row.protectionRank
+                this.dataForm.mediaVolume = row.mediaVolume ==null ?null:row.mediaVolume
+                this.dataForm.mediaDensity = row.mediaDensity ==null ?null:row.mediaDensity
+                this.dataForm.mediaShy = row.mediaShy ==null ?null:row.mediaShy
+                this.dataForm.minSoc = row.minSoc ==null ?null:row.minSoc
+                this.dataForm.maxSoc2 = row.maxSoc2 ==null ?null:row.maxSoc2
+                this.dataForm.efficiency = row.efficiency ==null ?null:row.efficiency
+                this.dataForm.minV = row.minV ==null ?null:row.minV
+                this.dataForm.maxV = row.maxV ==null ?null:row.maxV
+                this.dataForm.maxChargeV = row.maxChargeV ==null ?null:row.maxChargeV
+                this.dataForm.continutyP = row.continutyP ==null ?null:row.continutyP
+                this.dataForm.coolMethod = row.coolMethod ==null ?null:row.coolMethod
+                this.dataForm.loadType = row.loadType ==null ?null:row.loadType
+                this.dataForm.maxA = row.maxA ==null ?null:row.maxA
+                this.dataForm.acWay = row.acWay ==null ?null:row.acWay
+                this.dataForm.acMode = row.acMode ==null ?null:row.acMode
+                this.dataForm.acType = row.acType ==null ?null:row.acType
+                this.dataForm.nomCoolP = row.nomCoolP ==null ?null:row.nomCoolP
+                this.dataForm.nomHeatP = row.nomHeatP ==null ?null:row.nomHeatP
+                this.dataForm.eer = row.eer ==null ?null:row.eer
+                this.dataForm.cop = row.cop ==null ?null:row.cop
+                this.dataForm.loadRateLimit = row.loadRateLimit ==null ?null:row.loadRateLimit
+                this.dataForm.roomArea = row.roomArea ==null ?null:row.roomArea
+                this.dataForm.lossFactor = row.lossFactor ==null ?null:row.lossFactor
+                this.dataForm.freCon = row.freCon ==null ?null:row.freCon
+                this.dataForm.conMethod = row.conMethod ==null ?null:row.conMethod
+                this.dataForm.nomPw = row.nomPw ==null ?null:row.nomPw
+                this.dataForm.energyType = row.energyType ==null ?null:row.energyType
+                this.dataForm.softVer = row.softVer ==null ?null:row.softVer
+              // }
+
+            // })
+
+
+            // })
+          } else {
+            if(this.cuType!=7){
+              this.$message.error('错了哦，要选中设备才能新增');
+            }
+            else{
+        // this.$refs['dataForm'].resetFields()
+          this.visible = true
+
+            }
+
+          }
+
+        })
+      },
+      // 取消提交
+      cancel() {
+        this.visible = false
+        this.$refs['dataForm'].resetFields()
+      },
+      // 删除
+      deleteHandle(id) {
+        if(id){
+          id=parseInt(id)
+        }
+        var ids = id ? [id] : this.dataListSelections.map(item => {
+          return item.equipId
+        })
+        this.$confirm(`确定对[id=${ids.join(',')}]进行[${id ? '删除' : '批量删除'}]操作?`, '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }).then(() => {
+          this.$http({
+            url: this.$http.adornUrl('/admin/tequip/delete'),
+            method: 'post',
+            data: ids
+          }).then(({
+            data
+          }) => {
+            if (data && data.code === 0) {
+              this.$message({
+                message: '操作成功',
+                type: 'success',
+                duration: 1500,
+                onClose: () => {
+                  this.getDataList()
+                }
+              })
+            } else {
+              this.$message.error(data.msg)
+            }
+          })
+        }).catch(() => {})
+      },
+
+      // 设备信息表单提交
+      dataFormSubmit() {
+        
+        let array = {}
+        for(let i in this.dataForm){
+                var key = i; //得到key值
+                var value = this.dataForm[i];//得到对应key的value值
+                if(value==null){
+                  continue;   // 跳出循环，否则空值比较多时，会一直弹出
+                }else{
+                    array[i] = value
+                  }
+            }
+        
+        this.$refs['dataForm'].validate((valid) => {
+          if (valid) {
+            if (this.dataForm.equipId) {
+              this.$http({
+                url: this.$http.adornUrl('/admin/tequip/child/update'),
+                method: 'post',
+                data: this.$http.adornData({
+                  "systemCode": this.systemCode == null?null:this.systemCode.toString(),
+                  "subSystemCode": this.subSystemCode == null?null:this.subSystemCode.toString(),
+                  "entity":array
+                })
+              }).then(({
+                data
+              }) => {
+                if (data && data.code === 0) {
+                  this.$message({
+                    message: '操作成功',
+                    type: 'success',
+                    duration: 1500,
+                    onClose: () => {
+                      this.visible = false
+                      this.getDataList()
+                    }
+                  })
+                } else {
+                  this.$message.error(data.msg)
+                }
+              })
+            } else {
+
+              array.equipId = this.cuId
+              this.$http({
+                url: this.$http.adornUrl('/admin/tequip/child/add'),
+                method: 'post',
+                data: {
+                  "systemCode": this.systemCode == null?null:this.systemCode.toString(),
+                  "subSystemCode": this.subSystemCode == null?null:this.subSystemCode.toString(),
+                  "entity":array
+                }
+              }).then(({
+                data
+              }) => {
+                if (data && data.code === 0) {
+                  this.$message({
+                    message: '操作成功',
+                    type: 'success',
+                    duration: 1500,
+                    onClose: () => {
+                      this.visible = false
+                      this.getDataList()
+                    }
+                  })
+                } else {
+                  this.$message.error(data.msg)
+                }
+              })
+            }
+
+          }
+        })
+      },
+
+      // 点击树
+      handleNodeClick(data) {
+      },
+
+      loadNode(node, resolve) {
+       let nodeValue = []
+       if (node.level === 0) {
+        this.oldNode = node
+       this.oldResolve = resolve
+         this.$http({
+         url: this.$http.adornUrl('/admin/tequip/child/equipTree'),
+         method: 'post',
+         data: this.$http.adornData({
+           "id":null,
+           "systemCode":this.systemCode,
+           "subSystemCode":this.subSystemCode
+          })          
+       }).then(({
+         data
+       }) => {
+         if (data && data.code === 0) {
+           nodeValue = data.list
+           return resolve(nodeValue)
+         }
+       })
+       }else{
+         this.cuType = node.data.voType
+         this.cuId = node.data.id
+         this.$http({
+         url: this.$http.adornUrl('/admin/tequip/child/equipTree'),
+         method: 'post',
+         data: this.$http.adornData({
+           "id":node.data.id,
+           "voType":node.data.voType,
+           "systemCode":this.systemCode,
+           "subSystemCode":this.subSystemCode
+          })          
+       }).then(({
+         data
+       }) => {
+         if (data && data.code === 0) {
+           return resolve(data.list);
+         }
+       })
+       }
+      
+     },
+
+    },
+    filters: {
+      // 运行状态
+      usFilters: function (value) {
+        if (value == 1) {
+          return "未投运"
+        } else if (value == 2) {
+          return "投运"
+        } else if (value == 3) {
+          return "保养"
+        } else if (value == 4) {
+          return "检修"
+        } else if (value == 5) {
+          return "停用"
+        } else if (value == 6) {
+          return "报废"
+        }
+
+      },
+
+    }
+  }
+
+</script>
+<style scoped>
+  /* .ellipsis{
+          text-overflow:ellipsis;
+           overflow:hidden;
+        } */
+  .detail {
+    display: block;
+    margin-left: 20px;
+  }
+
+  .el-tree {
+    width: 15%;
+    height: 100%;
+    display: block;
+    /* border:1px red solid; */
+    float: left;
+
+  }
+
+  .device_detail>>>.el-dialog {
+    /* height: 60%; */
+    border: 1px red solid;
+  }
+
+  .el-date-editor {
+    width: 185px !important;
+  }
+
+  .el-table {
+    width: 84%;
+    float: right;
+  }
+
+  .dialogDiv>>>.el-form-item__label {
+    width: 40% !important;
+    padding-right: 20px;
+  }
+
+  .radioWid>>>.el-form-item__content {
+    width: 185px;
+  }
+
+  /* .device_detail >>> .el-dialog__body >>> .el-select {
+          width: 185px !important;
+          padding-right: 20px;
+        } */
+  .device_detail>>>.expand_info {
+    font-size: 0;
+  }
+
+  .device_detail>>>.el-form--inline .el-form-item label {
+    width: 100px;
+    color: #99a9bf;
+  }
+
+  .device_detail>>>.expand_info .el-form-item {
+    margin-right: 0;
+    margin-bottom: 0;
+    width: 20%;
+  }
+
+  .device_detail>>>.el-dialog .el-dialog__body .el-select {
+    width: 185px;
+
+  }
+
+  .device_detail>>>.el-dialog .el-dialog__body {
+    /* height: 70%; */
+    overflow: auto;
+    padding: 30px 20px;
+
+  }
+
+  .el-dialog form {
+    /* border: 1px solid red; */
+    /* height: 100%; */
+    background-color: #f0f3f3;
+    border-radius: 5px;
+    padding: 30px 0;
+  }
+
+  .device_detail>>>.el-dialog .el-input__inner {
+    text-align: center;
+
+  }
+
+  .el-dialog form .el-form-item {
+    display: inline-block;
+  }
+
+  .el-dialog form .el-form-item span {
+    display: inline-block;
+    width: 185px;
+    height: 40px;
+    text-align: center;
+  }
+
+  .el-dialog form>>>.el-input {
+    width: 100%;
+  }
+
+  .dataSet>>>.el-form-item__label {
+    width: 20% !important;
+  }
+
+  /* .dataSet>>>.el-input {
+          width: 80%;
+        } */
+
+  .s_title {
+    position: absolute;
+    z-index: 20000;
+    top: -10px;
+    left: 30px;
+  }
+
+  .el-form .first_label {
+    margin-top: 20px;
+  }
+
+  .alarm,
+  .loadStatistics,
+  .energyStatistics {
+    margin-top: 20px;
+    position: relative;
+    border: 1px solid #CCC;
+    border-radius: 25px;
+  }
+
+  .table_st {
+    margin-left: 30px;
+    margin-bottom: 5px;
+  }
+
+</style>

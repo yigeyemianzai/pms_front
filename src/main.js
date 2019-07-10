@@ -1,0 +1,85 @@
+import Vue from 'vue'
+import App from '@/App'
+
+import store from '@/store'                   // api: https://github.com/vuejs/vuex
+import VueCookie from 'vue-cookie'            // api: https://github.com/alfhen/vue-cookie
+import ElementUI from 'element-ui'
+// import '@/element-ui'                         // api: https://github.com/ElemeFE/element
+import '@/icons'                              // api: http://www.iconfont.cn/
+import '@/element-ui-theme'
+import '@/assets/scss/index.scss'
+import httpRequest from '@/utils/httpRequest' // api: https://github.com/axios/axios
+import { isAuth } from '@/utils'
+import cloneDeep from 'lodash/cloneDeep'
+import moment from 'moment'
+// import 'element-ui/lib/theme-chalk/index.css'
+// import 'element-ui/lib/theme-chalk/display.css'
+
+import $ from'jquery'
+import '@/assets/icon.css'
+import router from '@/router'                 // api: https://github.com/vuejs/vue-router
+// import { getUUID } from '@/utils'
+
+Vue.use(ElementUI)
+
+Vue.use(VueCookie)
+
+Vue.config.productionTip = false
+
+
+// 非生产环境, 适配mockjs模拟数据                 // api: https://github.com/nuysoft/Mock
+// if (process.env.NODE_ENV !== 'production') {
+  require('@/mock')
+// }
+
+// 挂载全局
+Vue.prototype.$http = httpRequest // ajax请求方法
+Vue.prototype.isAuth = isAuth     // 权限方法
+// Vue.prototype.uuid = getUUID()  // uuid标识
+Vue.prototype.OPTAUTH_QUERY = '1040:1'
+Vue.prototype.OPTAUTH_ADD = '1040:2'
+Vue.prototype.OPTAUTH_UPDATE = '1040:4'
+Vue.prototype.OPTAUTH_DELETE = '1040:8'
+Vue.prototype.OPTAUTH_RESET = '1040:64'  // 用户初始化
+Vue.prototype.OPTAUTH_CONTROL = '1040:16'
+Vue.prototype.ROOT_ORG_ID = '-1'
+Vue.prototype.SUPER_ORG_ID = '-100'
+Vue.prototype.SCOKET_ONOFF = '1040:16'  // 插座开关权限
+Vue.prototype.SCOKET_DZSET = '1040:32'  // 插座定值设置权限
+Vue.prototype.SCOKET_SET = '1040:64'  // 插座空调系统6个设定按钮权限
+
+// 表格隔行变色
+Vue.prototype.tableRowClassName = function ({row, rowIndex}){
+  if (rowIndex%2 === 0) {
+    return 'warning-row';
+  } else if (rowIndex%2 === 1) {
+    return 'success-row';
+  }
+  return '';
+}
+
+// 行颜色
+Vue.prototype.tableRowClassNames = function ({row, rowIndex}) {
+  if (row.level === 0) {
+    return 'first-row';
+  } else if (row.level === 1) {
+    return 'detail-row';
+  } else if (row.level === 2) {
+    return 'detail-row-2';
+  }
+  return '';
+},
+
+Vue.prototype.$moment = moment;//赋值使用
+
+// 保存整站vuex本地储存初始状态
+window.SITE_CONFIG['storeState'] = cloneDeep(store.state)
+
+/* eslint-disable no-new */
+new Vue({
+  el: '#app',
+  router,
+  store,
+  template: '<App/>',
+  components: { App }
+})

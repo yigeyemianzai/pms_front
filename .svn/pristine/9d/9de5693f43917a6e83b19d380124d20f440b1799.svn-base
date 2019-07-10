@@ -1,0 +1,1095 @@
+<template>
+  <div class="comm-agreement" id="commAgreement">
+    <el-form :inline="true" :model="secrchAgreementForm" @keyup.enter.native="getCommAgreementList()" class="device-form">
+      <el-form-item class="device-form-item" >
+        <el-input placeholder="协议名称" v-model="secrchAgreementForm.protocolName"></el-input>
+      </el-form-item>
+      <el-form-item class="device-form-item" >
+        <el-select 
+          v-model="secrchAgreementForm.protocolMode" 
+          clearable placeholder="协议模式">
+          <el-option
+            v-for="item in protocolModeOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value">
+          </el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item class="device-form-item" >
+        <el-select 
+          v-model="secrchAgreementForm.protocolType" 
+          clearable placeholder="协议类型">
+          <el-option
+            v-for="item in protocolTypeOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value">
+          </el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item class="device-form-item">
+        <el-button type="success" @click="getCommAgreementList('params')">查询</el-button>
+        <el-button v-if="isAuth(OPTAUTH_ADD)" type="primary" @click="addCommAgreement()">新增</el-button>
+        <el-button v-if="isAuth(OPTAUTH_DELETE)" type="danger" @click="deleteCommAgreement()" :disabled="dataListSelections.length <= 0">批量删除</el-button>
+      </el-form-item>
+    </el-form>
+    <el-table
+      :max-height="agreementTableHeight"
+      :data="agreementDataList"
+      border
+      stripe
+      :row-class-name="tableRowClassName"
+      v-loading="dataListLoading"
+      @selection-change="selectionChangeHandle"
+      style="width: 100%;">
+      <el-table-column
+        type="selection"
+        header-align="center"
+        align="center"
+        width="50">
+      </el-table-column>
+      <el-table-column
+        type="index"
+        header-align="center"
+        align="center"
+        width="80"
+        label="序号">
+      </el-table-column>
+      <el-table-column
+        v-for='(item, index) in cols'
+        :key="index"
+        :prop='item.prop'
+        :label='item.label'
+        :formatter="changeModel"
+        :width="item.width"
+        header-align="center"
+        align="center"
+        :show-overflow-tooltip='true'>
+      </el-table-column>
+      <!-- <el-table-column
+        prop="id"
+        header-align="center"
+        align="center"
+        min-width="80"
+        label="ID">
+      </el-table-column> -->
+      <!-- <el-table-column
+        prop="channelName"
+        header-align="center"
+        align="center"
+        min-width="120"
+        label="通道名称">
+      </el-table-column>
+      <el-table-column
+        prop="asdoAddress"
+        header-align="center"
+        align="center"
+        min-width="120"
+        label="公共地址">
+      </el-table-column>
+      <el-table-column
+        prop="callAllTime"
+        header-align="center"
+        align="center"
+        min-width="120"
+        label="总召间隔（秒）">
+      </el-table-column>
+      <el-table-column
+        prop="setTime"
+        header-align="center"
+        align="center"
+        min-width="120"
+        label="对时间隔（秒）">
+      </el-table-column>
+      <el-table-column
+        prop="yxStartAddr"
+        header-align="center"
+        align="center"
+        min-width="120"
+        label="遥信起始地址">
+      </el-table-column>
+      <el-table-column
+        prop="ycStartAddr"
+        header-align="center"
+        align="center"
+        min-width="120"
+        label="遥测起始地址">
+      </el-table-column>
+      <el-table-column
+        prop="ykStartAddr"
+        header-align="center"
+        align="center"
+        min-width="120"
+        label="遥控起始地址">
+      </el-table-column>
+      <el-table-column
+        prop="ytStartAddr"
+        header-align="center"
+        align="center"
+        min-width="120"
+        label="遥调起始地址">
+      </el-table-column>
+      <el-table-column
+        prop="ymStartAddr"
+        header-align="center"
+        align="center"
+        min-width="120"
+        label="遥脉起始地址">
+      </el-table-column> -->
+      <el-table-column
+        fixed="right"
+        header-align="center"
+        align="center"
+        width="150"
+        label="操作">
+        <template slot-scope="scope">
+          <el-tooltip class="item" effect="dark" content="修改" placement="top">
+            <el-button v-if="isAuth(OPTAUTH_UPDATE)" type="text" size="mini" @click="addCommAgreement(scope.row)"><i class="el-icon-edit-outline istyle"></i></el-button>
+          </el-tooltip>
+          <el-tooltip class="item" effect="dark" content="删除" placement="top">
+            <el-button v-if="isAuth(OPTAUTH_DELETE)" type="text" size="mini" @click="deleteCommAgreement(scope.row.protocolId)"><i class="el-icon-delete istyle"></i></el-button>
+          </el-tooltip>         
+        </template>
+      </el-table-column>
+    </el-table>
+    <el-pagination
+      @size-change="sizeChangeHandle"
+      @current-change="currentChangeHandle"
+      :current-page="pageIndex"
+      :page-sizes="[10, 20, 50, 100]"
+      :page-size="pageSize"
+      :total="totalPage"
+      layout="total, sizes, prev, pager, next, jumper">
+    </el-pagination>
+    <!-- 弹窗, 新增 / 修改 -->
+    <el-dialog
+      :title="dialogTitle == undefined ? '新  增' : '修  改'"
+      :close-on-click-modal="false"
+      :visible.sync="addOrUpdateVisible"
+      center="center"
+      width="27.66%"
+      class="rdialog">
+      <el-form :model="setAgreementdataForm" @keyup.enter.native="dataFormSubmit()" class="rel-form" :rules="agreementdataFormSetRule" ref="setAgreementdataForm" v-loading='changeLoading'>
+        <el-form-item class="rel-form-item" label="协议模式" prop="protocolModel">
+          <el-select 
+            v-model="setAgreementdataForm.protocolModel" 
+            clearable placeholder="协议模式">
+            <el-option
+              v-for="item in protocolModeOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value">
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item class="rel-form-item" label="协议类型" prop="protocolType">
+          <el-select 
+            v-model="setAgreementdataForm.protocolType" 
+            clearable placeholder="协议类型">
+            <el-option
+              v-for="item in protocolTypeOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value">
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item class="rel-form-item" label="协议名称" prop="protocolName">
+          <el-input v-model="setAgreementdataForm.protocolName" type="text" placeholder="请输入协议名称"></el-input>
+        </el-form-item>
+        <el-form-item class="rel-form-item" label="总召间隔（秒）" prop="callAllTime" v-if="this.setAgreementdataForm.protocolModel == '1' && (this.setAgreementdataForm.protocolType == '10120001' || this.setAgreementdataForm.protocolType == '10120002')">
+          <el-input-number v-model="setAgreementdataForm.callAllTime" :step="300" :min="1" controls-position="right"></el-input-number>
+        </el-form-item>
+        <el-form-item class="rel-form-item" label="对时间隔（秒）" prop="setTime" v-if="this.setAgreementdataForm.protocolModel == '1' && (this.setAgreementdataForm.protocolType == '10120001' || this.setAgreementdataForm.protocolType == '10120002')">
+          <el-input-number v-model="setAgreementdataForm.setTime" :step="60" :min="1" controls-position="right"></el-input-number>
+        </el-form-item>
+        <el-form-item class="rel-form-item" label="数据上送类型" prop="protocolType" v-if="this.setAgreementdataForm.protocolModel == '2' && (this.setAgreementdataForm.protocolType == '10120001' || this.setAgreementdataForm.protocolType == '10120002')">
+          <el-select 
+            v-model="setAgreementdataForm.ycDataType" 
+            clearable placeholder="数据上送类型">
+            <el-option
+              v-for="item in ycDataTypeOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value">
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item class="rel-form-item" label="遥信起始地址" prop="yxStartAddr" v-if="this.setAgreementdataForm.protocolType != '10120003' && this.setAgreementdataForm.protocolType != ''">
+          <el-input v-model="setAgreementdataForm.yxStartAddr" type="number" min="0" placeholder="请输入0~32767范围的值"></el-input>
+        </el-form-item>
+        <el-form-item class="rel-form-item" label="遥测起始地址" prop="ycStartAddr" v-if="this.setAgreementdataForm.protocolType != '10120003' && this.setAgreementdataForm.protocolType != ''">
+          <el-input v-model="setAgreementdataForm.ycStartAddr" type="number" min="0" placeholder="请输入0~32767范围的值"></el-input>
+        </el-form-item>
+        <el-form-item class="rel-form-item" label="遥控起始地址" prop="ykStartAddr" v-if="this.setAgreementdataForm.protocolType != '10120003' && this.setAgreementdataForm.protocolType != ''">
+          <el-input v-model="setAgreementdataForm.ykStartAddr" type="number" min="0" placeholder="请输入0~32767范围的值"></el-input>
+        </el-form-item>
+        <el-form-item class="rel-form-item" label="遥调起始地址" prop="ytStartAddr" v-if="this.setAgreementdataForm.protocolType != '10120003' && this.setAgreementdataForm.protocolType != ''">
+          <el-input v-model="setAgreementdataForm.ytStartAddr" type="number" min="0" placeholder="请输入0~32767范围的值"></el-input>
+        </el-form-item>
+        <el-form-item class="rel-form-item" label="遥脉起始地址" prop="ymStartAddr" v-if="this.setAgreementdataForm.protocolType != '10120003' && this.setAgreementdataForm.protocolType != ''">
+          <el-input v-model="setAgreementdataForm.ymStartAddr" type="number" min="0" placeholder="请输入0~32767范围的值"></el-input>
+        </el-form-item>
+        <el-form-item class="rel-form-item" label="redis密码" prop="password" v-if="(this.setAgreementdataForm.protocolModel == '2' || this.setAgreementdataForm.protocolModel == '1') && this.setAgreementdataForm.protocolType == '10120003'">
+          <el-input v-model="setAgreementdataForm.password"></el-input>
+        </el-form-item>
+        <el-form-item class="rel-form-item" label="全数据上报间隔（秒）" prop="reportTime" v-if="this.setAgreementdataForm.protocolModel == '2' && this.setAgreementdataForm.protocolType == '10120003'">
+          <el-input-number v-model="setAgreementdataForm.reportTime" :step="1" :min="1" controls-position="right"></el-input-number>
+        </el-form-item>
+      </el-form>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="addOrUpdateVisible = false">取消</el-button>
+        <el-button type="primary" @click="dataFormSubmit(setAgreementdataForm)">确定</el-button>
+      </span>
+    </el-dialog>
+  </div>
+</template>
+<script>
+export default { 
+  data () {
+    // 协议名称唯一校验
+    var validateProtocolName = (rule, value, callback) => {
+      if (value && this.setAgreementdataForm.protocolName != '' && this.setAgreementdataForm.protocolName != this.saveRowDataProtocolName) {
+        this.$http({
+          url: this.$http.adornUrl('/admin/tprotocol/checkProtocolName'),
+          method: 'get',
+          params: this.$http.adornParams({
+            'protocolName': value
+          })
+        }).then(({data}) => {
+          console.log(data)
+          if (data && data.code === 0 && data.data.status === false) {
+            callback(new Error(data.data.msg))
+          }else {
+            callback()
+          }
+        })
+      } else {
+        callback()
+      }
+    }
+    var validateAddress = (rule, value, callback) => {
+      if (value > 32767 || value < 0) {
+        callback(new Error('地址超出0~32767范围'))
+      } else {
+        callback()
+      }
+    }
+    return {
+      saveProtocolId: null,
+      ycDataTypeOptions: [{
+          'label': '浮点值',
+          'value': '0'
+        },{
+          'label': '归一化值',
+          'value': '1'
+        }],
+      cols: [
+        {
+          label: '协议名称',
+          prop: 'protocolName',
+          width:160
+          },{
+            label: '协议模式',
+            prop: 'protocolModel',
+          },{
+            label: '协议类型',
+            prop: 'protocolType',
+            width:130
+          },{
+            label: '总召间隔(秒)',
+            prop: 'callAllTime'
+          },{
+            label: '对时间隔(秒)',
+            prop: 'setTime'
+          },{
+            label: '数据上报类型',
+            prop: 'ycDataType'
+          },{
+            label: '遥信地址',
+            prop: 'yxStartAddr'
+          },{
+            label: '遥测地址',
+            prop: 'ycStartAddr'
+          },{
+            label: '遥控地址',
+            prop: 'ykStartAddr'
+          },{
+            label: '遥调地址',
+            prop: 'ytStartAddr'
+          },{
+            label: '遥脉地址',
+            prop: 'ymStartAddr'
+          },{
+            label: 'redis密码',
+            prop: 'password'
+          },{
+            label: '全数据上报间隔(秒)',
+            prop: 'reportTime'
+        }
+      ],
+      // 协议模式
+      protocolModeOptions: [{
+        value: '1',
+        label: '主'
+      },{
+        value: '2',
+        label: '从'
+      }],
+      protocolTypeOptions: [],  // 协议类型
+      // 表格高度
+      agreementTableHeight: '',
+      // 增加、修改页面表单
+      changeLoading: false,
+      setAgreementdataForm: {
+        protocolModel: '',
+        protocolType: '',
+        protocolName: '',
+        callAllTime: 300,
+        setTime: 60,
+        ycDataType: '',
+        yxStartAddr: '1',
+        ycStartAddr: '16385',
+        ykStartAddr: '24577',
+        ytStartAddr: '25089',
+        ymStartAddr: '25601',
+        password: '',
+        reportTime: '300'
+      },
+      agreementdataFormSetRule: {
+        protocolModel: [{ required: true, message: '协议模式不能为空', trigger: 'change'}],
+        protocolType: [{ required: true, message: '协议类型不能为空', trigger: 'change'}],
+        protocolName: [
+          { required: true, message: '协议名称不能为空', trigger: 'blur' },
+          { validator: validateProtocolName,  trigger: 'blur' }
+        ],
+        callAllTime: [{ required: true, message: '总召间隔不能为空', trigger: 'blur' }],
+        setTime: [{ required: true, message: '对时间隔不能为空', trigger: 'blur' }],
+        ycDataType: [],
+        yxStartAddr: [{ required: true, message: '遥信起始地址不能为空', trigger: 'blur' },{ validator: validateAddress, trigger: 'blur' }],
+        ycStartAddr: [{ required: true, message: '遥测起始地址不能为空', trigger: 'blur' },{ validator: validateAddress, trigger: 'blur' }],
+        ykStartAddr: [{ required: true, message: '遥控起始地址不能为空', trigger: 'blur' },{ validator: validateAddress, trigger: 'blur' }],
+        ytStartAddr: [{ required: true, message: '遥调起始地址不能为空', trigger: 'blur' },{ validator: validateAddress, trigger: 'blur' }],
+        ymStartAddr: [{ required: true, message: '遥脉起始地址不能为空', trigger: 'blur' },{ validator: validateAddress, trigger: 'blur' }],
+        password: [{ required: true, message: '密码不能为空', trigger: 'blur'}],
+        reportTime: [{ required: true, message: '上报间隔不能为空', trigger: 'change'}]
+      },
+      // 区分是新增还是修改页面
+      dialogTitle: '',
+      // 搜索表单 
+      secrchAgreementForm: {
+        protocolName: null,
+        protocolMode: '',
+        protocolType: ''
+      },
+      // 组织机构列表
+      organizationOptions: [],
+      // 通道标识列表
+      channelOptions: [],
+      // 表格数据
+      agreementDataList: [],
+      // 当前页
+      pageIndex: 1,
+      // 分页大小
+      pageSize: 10,
+      // 总记录数
+      totalPage: 2,
+      // 多选数组
+      dataListSelections: [],
+      addOrUpdateVisible: false,
+      dataListLoading: false,
+      agreementLoading: false,
+      saveRowDataProtocolName: null    // 点击修改 记录该行数据
+    }
+  },
+  created () {
+    this.agreementTableHeight = window.innerHeight-320   
+  },
+  mounted () {
+    this.getProtocolTypeList()
+    this.getCommAgreementList()
+    
+    // document.getElementById('commAgreement').style.height = (window.innerHeight-170)+'px'
+    window.onresize = function () {
+      if(document.getElementById('commAgreement')){
+        // document.getElementById('commAgreement').style.height = (window.innerHeight - 170) + 'px'
+        this.agreementTableHeight = window.innerHeight-320
+      }
+    }   
+  },
+  methods: {
+    // 获取协议类型下拉框
+    getProtocolTypeList () {
+      this.$http({
+        url: this.$http.adornUrl('/admin/tprotocol/protocoltype'),
+        method: 'post',
+        data: this.$http.adornData({
+        })
+      }).then(({data}) => {
+        if(data && data.code === 0) {
+          console.log(data)
+          this.protocolTypeOptions = data.data
+        }
+      })
+    },
+    // 提交修改配置页面信息
+    dataFormSubmit (setAgreementdataForm) {
+      console.log(setAgreementdataForm)
+      console.log(this.saveRowDataProtocolName)
+      if(this.saveRowDataProtocolName != this.setAgreementdataForm.protocolName) {
+        this.$http({
+          url: this.$http.adornUrl('/admin/tprotocol/checkProtocolName'),
+          method: 'get',
+          params: this.$http.adornParams({
+            'protocolName': this.setAgreementdataForm.protocolName
+          })
+        }).then(({data}) => {
+          console.log(data)
+          if (data && data.code === 0 && data.data.status === false) {
+            this.$message({
+              message: '协议名称已存在，请重新输入',
+              type: 'error',
+              duration: 1500,
+              onClose: () => {
+              }
+            })
+          }else {
+            let protocolTypeName = null
+            for(let i=0;i<this.protocolTypeOptions.length;i++) {
+              if(this.setAgreementdataForm.protocolType == this.protocolTypeOptions[i].value) {
+                protocolTypeName = this.protocolTypeOptions[i].label
+              }
+            }
+            this.$refs['setAgreementdataForm'].validate((valid) => {
+              if (valid) {
+                this.$confirm(`确定提交?`, '提示', {
+                  confirmButtonText: '确定',
+                  cancelButtonText: '取消',
+                  type: 'warning'
+                }).then(() => {
+                  this.$http({
+                    url: this.$http.adornUrl(`/admin/tprotocol/${this.dialogTitle == undefined ? 'save' : 'update'}`),
+                    method: 'post',
+                    data: this.$http.adornData({
+                      'protocolId': this.dialogTitle == undefined ? null : this.dialogTitle,
+                      'protocolModel': this.setAgreementdataForm.protocolModel,
+                      'protocolType': protocolTypeName,
+                      'protocolName': this.setAgreementdataForm.protocolName,
+                      'callAllTime': this.setAgreementdataForm.callAllTime,
+                      'setTime': this.setAgreementdataForm.setTime,
+                      'ycDataType': this.setAgreementdataForm.ycDataType,
+                      'yxStartAddr': this.setAgreementdataForm.yxStartAddr,
+                      'ycStartAddr': this.setAgreementdataForm.ycStartAddr,
+                      'ykStartAddr': this.setAgreementdataForm.ykStartAddr,
+                      'ytStartAddr': this.setAgreementdataForm.ytStartAddr,
+                      'ymStartAddr': this.setAgreementdataForm.ymStartAddr,
+                      'password': this.setAgreementdataForm.password,
+                      'reportTime': this.setAgreementdataForm.reportTime
+                    })
+                  }).then(({data}) => {
+                    if(data && data.code === 0) {
+                      this.addOrUpdateVisible = false
+                          this.$options.methods.getCommAgreementList.bind(this)()
+                      this.$message({
+                        message: '操作成功',
+                        type: 'success',
+                        duration: 1500,
+                        onClose: () => {
+                          
+                        }
+                      })                
+                    } else {
+                      this.$message.error(data.msg)
+                    }
+                  })           
+                })
+              } else {
+                console.log('error submit!!')
+                return false
+              }
+            })
+          }
+        })
+      } else {
+        let protocolTypeName = null
+        for(let i=0;i<this.protocolTypeOptions.length;i++) {
+          if(this.setAgreementdataForm.protocolType == this.protocolTypeOptions[i].value) {
+            protocolTypeName = this.protocolTypeOptions[i].label
+          }
+        }
+        this.$refs['setAgreementdataForm'].validate((valid) => {
+          if (valid) {
+            this.$confirm(`确定提交?`, '提示', {
+              confirmButtonText: '确定',
+              cancelButtonText: '取消',
+              type: 'warning'
+            }).then(() => {
+              this.$http({
+                url: this.$http.adornUrl(`/admin/tprotocol/${this.dialogTitle == undefined ? 'save' : 'update'}`),
+                method: 'post',
+                data: this.$http.adornData({
+                  'protocolId': this.dialogTitle == undefined ? null : this.dialogTitle,
+                  'protocolModel': this.setAgreementdataForm.protocolModel,
+                  'protocolType': protocolTypeName,
+                  'protocolName': this.setAgreementdataForm.protocolName,
+                  'callAllTime': this.setAgreementdataForm.callAllTime,
+                  'setTime': this.setAgreementdataForm.setTime,
+                  'ycDataType': this.setAgreementdataForm.ycDataType,
+                  'yxStartAddr': this.setAgreementdataForm.yxStartAddr,
+                  'ycStartAddr': this.setAgreementdataForm.ycStartAddr,
+                  'ykStartAddr': this.setAgreementdataForm.ykStartAddr,
+                  'ytStartAddr': this.setAgreementdataForm.ytStartAddr,
+                  'ymStartAddr': this.setAgreementdataForm.ymStartAddr,
+                  'password': this.setAgreementdataForm.password,
+                  'reportTime': this.setAgreementdataForm.reportTime
+                })
+              }).then(({data}) => {
+                if(data && data.code === 0) {
+                  this.addOrUpdateVisible = false
+                      this.$options.methods.getCommAgreementList.bind(this)()
+                  this.$message({
+                    message: '操作成功',
+                    type: 'success',
+                    duration: 1500,
+                    onClose: () => {
+                      
+                    }
+                  })                
+                } else {
+                  this.$message.error(data.msg)
+                }
+              })           
+            })
+          } else {
+            console.log('error submit!!')
+            return false
+          }
+        })
+      }      
+    },
+    // 获取数据列表
+    getCommAgreementList (params) {
+      // 协议模式（1：主，2：从）  模式 10120001:Standard104;   10120002：OutLetExtend104；  10120003：StandardRedis
+      console.log(this.secrchAgreementForm.protocolMode)
+      console.log(this.secrchAgreementForm.protocolType)
+      let protocolMode = this.secrchAgreementForm.protocolMode ,
+          protocolType = this.secrchAgreementForm.protocolType
+      if(protocolMode == '1' && (protocolType == '10120001' || protocolType == '10120002')) {
+        this.cols = [
+          {
+            label: '协议名称',
+            prop: 'protocolName',
+            width:160
+          },{
+            label: '协议模式',
+            prop: 'protocolModel',
+          },{
+            label: '协议类型',
+            prop: 'protocolType',
+            width:130
+          },{
+            label: '总召间隔(秒)',
+            prop: 'callAllTime'
+          },{
+            label: '对时间隔(秒)',
+            prop: 'setTime'
+          },{
+            label: '遥信地址',
+            prop: 'yxStartAddr'
+          },{
+            label: '遥测地址',
+            prop: 'ycStartAddr'
+          },{
+            label: '遥控地址',
+            prop: 'ykStartAddr'
+          },{
+            label: '遥调地址',
+            prop: 'ytStartAddr'
+          },{
+            label: '遥脉地址',
+            prop: 'ymStartAddr'
+          }
+        ]
+      } else if(protocolMode == '2' && (protocolType == '10120001' || protocolType == '10120002')) {
+        this.cols = [
+          {
+            label: '协议名称',
+            prop: 'protocolName',
+            width:160
+          },{
+            label: '协议模式',
+            prop: 'protocolModel'
+          },{
+            label: '协议类型',
+            prop: 'protocolType',
+            width:130
+          },{
+            label: '数据上报类型',
+            prop: 'ycDataType'
+          },{
+            label: '遥信地址',
+            prop: 'yxStartAddr'
+          },{
+            label: '遥测地址',
+            prop: 'ycStartAddr'
+          },{
+            label: '遥控地址',
+            prop: 'ykStartAddr'
+          },{
+            label: '遥调地址',
+            prop: 'ytStartAddr'
+          },{
+            label: '遥脉地址',
+            prop: 'ymStartAddr'
+          }
+        ]
+      } else if(protocolMode == '1' && protocolType == '10120003') {
+        this.cols = [
+          {
+            label: '协议名称',
+            prop: 'protocolName',
+            width:160
+          },{
+            label: '协议模式',
+            prop: 'protocolModel'
+          },{
+            label: '协议类型',
+            prop: 'protocolType',
+            width:130
+          },{
+            label: 'redis密码',
+            prop: 'password'
+          }
+        ]
+      } else if((protocolMode == '2' || protocolMode == '') && protocolType == '10120003') {
+        this.cols = [
+          {
+            label: '协议名称',
+            prop: 'protocolName',
+            width:160
+          },{
+            label: '协议模式',
+            prop: 'protocolModel'
+          },{
+            label: '协议类型',
+            prop: 'protocolType',
+            width:130
+          },{
+            label: 'redis密码',
+            prop: 'password'
+          },{
+            label: '全数据上报间隔(秒)',
+            prop: 'reportTime'
+          }
+        ]
+      } else if(protocolMode == '1' && protocolType == '') {
+        this.cols = [
+          {
+            label: '协议名称',
+            prop: 'protocolName',
+            width:160
+          },{
+            label: '协议模式',
+            prop: 'protocolModel'
+          },{
+            label: '协议类型',
+            prop: 'protocolType',
+            width:130
+          },{
+            label: '总召间隔(秒)',
+            prop: 'callAllTime'
+          },{
+            label: '对时间隔(秒)',
+            prop: 'setTime'
+          },{
+            label: '遥信地址',
+            prop: 'yxStartAddr'
+          },{
+            label: '遥测地址',
+            prop: 'ycStartAddr'
+          },{
+            label: '遥控地址',
+            prop: 'ykStartAddr'
+          },{
+            label: '遥调地址',
+            prop: 'ytStartAddr'
+          },{
+            label: '遥脉地址',
+            prop: 'ymStartAddr'
+          },{
+            label: 'redis密码',
+            prop: 'password'
+          }
+        ]
+      } else if(protocolMode == '2' && protocolType == '') {
+        this.cols = [
+          {
+            label: '协议名称',
+            prop: 'protocolName',
+            width:160
+          },{
+            label: '协议模式',
+            prop: 'protocolModel'
+          },{
+            label: '协议类型',
+            prop: 'protocolType',
+            width:130
+          },{
+            label: '数据上报类型',
+            prop: 'ycDataType'
+          },{
+            label: '遥信地址',
+            prop: 'yxStartAddr'
+          },{
+            label: '遥测地址',
+            prop: 'ycStartAddr'
+          },{
+            label: '遥控地址',
+            prop: 'ykStartAddr'
+          },{
+            label: '遥调地址',
+            prop: 'ytStartAddr'
+          },{
+            label: '遥脉地址',
+            prop: 'ymStartAddr'
+          },{
+            label: 'redis密码',
+            prop: 'password'
+          },{
+            label: '全数据上报间隔(秒)',
+            prop: 'reportTime'
+          }
+        ]
+      } else if(protocolMode == '' && (protocolType == '10120001' || protocolType == '10120002')) {
+        this.cols = [
+          {
+            label: '协议名称',
+            prop: 'protocolName',
+            width:160
+          },{
+            label: '协议模式',
+            prop: 'protocolModel'
+          },{
+            label: '协议类型',
+            prop: 'protocolType',
+            width:130
+          },{
+            label: '总召间隔(秒)',
+            prop: 'callAllTime'
+          },{
+            label: '对时间隔(秒)',
+            prop: 'setTime'
+          },{
+            label: '数据上报类型',
+            prop: 'ycDataType'
+          },{
+            label: '遥信地址',
+            prop: 'yxStartAddr'
+          },{
+            label: '遥测地址',
+            prop: 'ycStartAddr'
+          },{
+            label: '遥控地址',
+            prop: 'ykStartAddr'
+          },{
+            label: '遥调地址',
+            prop: 'ytStartAddr'
+          },{
+            label: '遥脉地址',
+            prop: 'ymStartAddr'
+          }
+        ]
+      } else if(protocolMode == '' && protocolType == '') {
+        this.cols = [
+          {
+            label: '协议名称',
+            prop: 'protocolName',
+            width:160
+          },{
+            label: '协议模式',
+            prop: 'protocolModel',
+          },{
+            label: '协议类型',
+            prop: 'protocolType',
+            width:130
+          },{
+            label: '总召间隔(秒)',
+            prop: 'callAllTime'
+          },{
+            label: '对时间隔(秒)',
+            prop: 'setTime'
+          },{
+            label: '数据上报类型',
+            prop: 'ycDataType'
+          },{
+            label: '遥信地址',
+            prop: 'yxStartAddr'
+          },{
+            label: '遥测地址',
+            prop: 'ycStartAddr'
+          },{
+            label: '遥控地址',
+            prop: 'ykStartAddr'
+          },{
+            label: '遥调地址',
+            prop: 'ytStartAddr'
+          },{
+            label: '遥脉地址',
+            prop: 'ymStartAddr'
+          },{
+            label: 'redis密码',
+            prop: 'password'
+          },{
+            label: '全数据上报间隔(秒)',
+            prop: 'reportTime'
+          }
+        ]
+      }
+
+
+
+      if(params){
+        this.pageIndex=1
+      }
+      // console.log(this.secrchAgreementForm)
+      let protocolTypeName = null
+      for(let i=0;i<this.protocolTypeOptions.length;i++) {
+        if(this.secrchAgreementForm.protocolType == this.protocolTypeOptions[i].value) {
+          protocolTypeName = this.protocolTypeOptions[i].label
+        }
+      }
+      this.dataListLoading = true
+      this.$http({
+        url: this.$http.adornUrl('/admin/tprotocol/list'),
+        method: 'post',
+        data: this.$http.adornParams({
+          'pageNumber': this.pageIndex.toString(),
+          'pageSize': this.pageSize.toString(),
+          'entity': {
+            'protocolModel': this.secrchAgreementForm.protocolMode == '' ? null : this.secrchAgreementForm.protocolMode,  // "协议模式",
+            'protocolType': protocolTypeName,   // "协议类型",
+            'protocolName': this.secrchAgreementForm.protocolName == '' ? null : this.secrchAgreementForm.protocolName  // "协议名称"
+          }          
+        })
+      }).then(({data}) => {
+        if (data && data.code === 0) {
+          this.agreementDataList = data.page.list
+          this.totalPage = data.page.total
+          this.pageIndex = data.page.pageNum
+          this.pageSize = data.page.pageSize
+        } else {
+          this.agreementDataList = []
+          this.totalPage = 0
+        }
+        this.dataListLoading = false
+      })
+    },
+    // 每页数
+    sizeChangeHandle (val) {
+      this.pageSize = val
+      this.pageIndex = 1
+      this.$options.methods.getCommAgreementList.bind(this)()
+    },
+    // 当前页
+    currentChangeHandle (val) {
+      this.pageIndex = val
+      this.$options.methods.getCommAgreementList.bind(this)()
+    },
+    // 多选
+    selectionChangeHandle (val) {
+      this.dataListSelections = val
+    },
+    // 新增 / 修改
+    addCommAgreement (row) {
+      this.addOrUpdateVisible = true
+      this.dialogTitle = ''
+      this.changeLoading = true
+      this.$nextTick(function () {
+        this.$refs['setAgreementdataForm'].resetFields()
+        this.setAgreementdataForm.protocolModel = ''
+        this.setAgreementdataForm.protocolType = ''        
+      })
+      // 修改则把改行信息传入 增加则没有
+      if(row) {
+        this.saveProtocolId = row.protocolId
+        this.$http({
+          url: this.$http.adornUrl(`/admin/tprotocol/info?protocolId=${row.protocolId}`),
+          method: 'get',
+          params: this.$http.adornParams()
+        }).then(({data}) => {
+          if (data && data.code === 0) {
+            this.saveRowDataProtocolName = data.tProtocol.protocolName
+            this.dialogTitle = data.tProtocol.protocolId
+            this.setAgreementdataForm.protocolModel = data.tProtocol.protocolModel.toString()
+            // this.setAgreementdataForm.protocolType = data.tProtocol.protocolType
+            this.setAgreementdataForm.protocolName = data.tProtocol.protocolName
+            this.setAgreementdataForm.callAllTime = data.tProtocol.callAllTime
+            this.setAgreementdataForm.setTime = data.tProtocol.setTime
+            this.setAgreementdataForm.ycDataType = data.tProtocol.ycDataType
+            this.setAgreementdataForm.yxStartAddr = data.tProtocol.yxStartAddr
+            this.setAgreementdataForm.ycStartAddr = data.tProtocol.ycStartAddr
+            this.setAgreementdataForm.ykStartAddr = data.tProtocol.ykStartAddr
+            this.setAgreementdataForm.ytStartAddr = data.tProtocol.ytStartAddr
+            this.setAgreementdataForm.ymStartAddr = data.tProtocol.ymStartAddr
+            this.setAgreementdataForm.password = data.tProtocol.password
+            this.setAgreementdataForm.reportTime = data.tProtocol.reportTime
+            // console.log(this.protocolTypeOptions)
+            for(let i=0;i<this.protocolTypeOptions.length;i++) {
+              if(data.tProtocol.protocolType == this.protocolTypeOptions[i].label) {
+                this.setAgreementdataForm.protocolType = this.protocolTypeOptions[i].value
+              }
+            }
+            this.changeLoading = false      
+          }
+        })    
+        /* this.$nextTick(function () {         
+          this.dialogTitle = row.id
+          this.setAgreementdataForm.channelId = row.channelId.toString()
+          this.setAgreementdataForm.asdoAddress = row.asdoAddress.toString()
+          this.setAgreementdataForm.callAllTime = row.callAllTime.toString()
+          this.setAgreementdataForm.setTime = row.setTime.toString()
+          this.setAgreementdataForm.yxStartAddr = row.yxStartAddr.toString()
+          this.setAgreementdataForm.ycStartAddr = row.ycStartAddr.toString()
+          this.setAgreementdataForm.ykStartAddr = row.ykStartAddr.toString()
+          this.setAgreementdataForm.ytStartAddr = row.ytStartAddr.toString()
+          this.setAgreementdataForm.ymStartAddr = row.ymStartAddr.toString()
+        }) */
+      }else {
+        this.dialogTitle = row
+        this.changeLoading = false
+      }
+    },
+    // 删除
+    deleteCommAgreement (id) {
+      var protocolId = id ? [id] : this.dataListSelections.map(item => {
+        return item.protocolId
+      })
+      this.$confirm('确定删除操作?', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(() => {
+        this.$http({
+          url: this.$http.adornUrl('/admin/tprotocol/delete'),
+          method: 'post',
+          data: this.$http.adornData(protocolId, false)
+        }).then(({data}) => {
+          if (data && data.code === 0) {
+                this.getCommAgreementList()
+            this.$message({
+              message: '操作成功',
+              type: 'success',
+              duration: 1500,
+              onClose: () => {
+              }
+            })
+          } else {
+            this.$message.error(data.msg)
+          }
+        })
+      }).catch(() => {})
+    },
+    // 通讯模式（1：主，2：从）
+    changeModel (row, column, cellValue, index) {
+      // console.log(row, column, cellValue, index)
+      if(column.property == 'protocolModel') {
+        if(cellValue === 1){
+          return '主'
+        }else if(cellValue === 2){
+          return '从'
+        }else {
+          return '-'
+        }
+      } else if(column.property == 'ycDataType') {
+        if(cellValue === 0){
+          return '浮点值'
+        }else if(cellValue === 1){
+          return '归一化值'
+        }else {
+          return '-'
+        }
+      }else {
+        return cellValue
+      }
+      
+    },
+  }
+}
+</script>
+<style scoped>
+/* 搜索条件栏样式开始 */
+.device-form {
+  /* background-color: #eef4fa; */
+  border-radius: 5px 5px 0 0 ;
+  /* margin-bottom: 10px; */
+  height: 80px;
+  width: 100%;
+  padding: 0 10px 0 10px;
+  display: flex;
+  align-items: center;
+  text-align: justify
+}
+.device-form-item {
+  margin-bottom: 0;
+  /* flex: 1 */
+}
+.device-form-item a, .set-device-form-item a {
+  font-weight: 600;
+  font-size: 15px
+}
+/* 搜索条件栏样式结束 */
+
+/* 表格样式开始 */
+/* .comm-agreement {
+  width: 100%;
+  height: 90%;
+  min-height: 90%;
+  margin: 0 auto;
+  font-size: 14px;
+  overflow-y: auto
+} */
+/* .comm-agreement >>> .el-table td {
+  padding: 0
+}
+ */
+/* 表格样式结束 */
+
+/* 增加修改配置页面样式开始 */
+/* .comm-agreement >>> .el-dialog {
+  height: 70%;
+}
+.comm-agreement >>> .el-dialog .el-dialog__body {
+  height: 80%;
+} */
+.set-device-form {
+  background-color: #eef4fa;
+  border-radius: 5px;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 20px 0 0 1%;
+  /* height: 100%;
+  overflow-y: auto */
+}
+.set-device-form-item >>> .el-form-item__content {
+  width: 50%;
+  display: flex;
+  flex-direction: row;
+}
+.set-device-form-item >>> .el-form-item__label {
+  min-width: 180px
+}
+/* .set-device-form-item a {
+  flex: 1;
+  min-width: 150px;
+  text-decoration: none
+} */
+.set-device-form-item >>> .el-select, .set-device-form-item >>> .el-cascader, .set-device-form-item >>> .el-input, .set-device-form-item >>> .el-input-number {
+  flex: 2
+}
+/* 增加修改配置页面样式结束 */
+</style>
+<style lang="scss" scoped>
+@import "../../../../assets/scss/_dialog.scss"
+</style>

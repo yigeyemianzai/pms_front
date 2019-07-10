@@ -1,0 +1,1728 @@
+<template>
+  <div class="statuteManagement" id="statuteManagement" v-loading='load' element-loading-text="规约生成中,请耐心等待">
+    <!-- 左侧 -->
+    <div class="statuteManagement-left">
+      <!-- 左侧上方按钮 -->
+      <div class="statuteManagement-left-top">
+        <el-form class="statute-produce" :model="produceDataForm">
+          <div class="statute-produce-left">
+            <el-form-item class="produce-right-item">
+              <el-cascader
+                :options="organizationOptions"
+                v-model="produceDataForm.orgSelectedOptions"
+                change-on-select
+                placeholder="组织机构"
+              ></el-cascader>
+            </el-form-item>
+            <el-form-item class="produce-right-item">
+              <el-select
+                v-model="produceDataForm.pointTypeSelectedOptions" 
+                clearable filterable placeholder="规约类型">
+                <el-option
+                  v-for="item in pointTypeOptions"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value">
+                </el-option>
+              </el-select>
+            </el-form-item>
+          </div>
+          <div class="statute-produce-right">
+            <el-form-item class="produce-right-item">
+              <el-select
+                v-model="produceDataForm.stationSelectedOptions" 
+                clearable filterable placeholder="站点"
+                @click.native="getStationNameLists()">
+                <el-option
+                  v-for="item in stationOptions"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value">
+                </el-option>
+              </el-select>
+            </el-form-item>
+            <el-form-item class="produce-right-item">
+              <el-button @click="generatingPointTable()" style="background-color:#4ec0ff;color:#fff;border:none">生成规约</el-button>
+            </el-form-item>
+          </div>          
+        </el-form>
+      </div>
+      <!-- 左侧下方表格 -->
+      <div class="statuteManagement-left-bottom">
+        <el-table
+          :header-cell-style="{background:'#edeef0',color:'#000',fontSize:'14px',height:'40px'}"
+          :cell-class-name="cellStyle"
+          @cell-click="clickedDevice"
+          :data='deviceTableData'
+          v-loading="deviceTableDataListLoading"
+          @selection-change="selectionChangeHandle"         
+          >
+          <el-table-column
+            fixed="left"
+            type="selection"
+            header-align="center"
+            align="center"
+            width="50">
+          </el-table-column>
+          <el-table-column
+            prop="commEquipName"
+            header-align="center"
+            align="center"
+            min-width="150"
+            label="设备名称">
+          </el-table-column>
+        </el-table>
+      </div>
+    </div>
+    <!-- 右侧 -->
+    <div class="statuteManagement-right">
+      <el-form
+        :model="secrchDataForm">
+        <el-form-item>
+          <el-button type="primary" @click="addStatute()" :disabled="activeName == 0">新增</el-button>
+          <el-button type="warning" @click="editStatute()" :disabled="statuteDataListSelections.length <= 0" style="background-color:#00d7da;border:none">修改</el-button>
+          <el-button type="danger" @click="deleteStatute()" :disabled="statuteDataListSelections.length <= 0">批量删除</el-button>
+        </el-form-item>
+      </el-form>
+      <template>
+        <el-tabs v-model="activeName" type="card" @tab-click="handleClick">
+          <el-tab-pane label="遥信" name="1">
+          </el-tab-pane>
+          <el-tab-pane label="遥测" name="2">
+          </el-tab-pane>
+          <el-tab-pane label="遥控" name="3"></el-tab-pane>
+          <el-tab-pane label="遥调" name="4"></el-tab-pane>
+          <el-tab-pane label="遥脉" name="5"></el-tab-pane>
+        </el-tabs>
+      </template>
+      <el-table
+        :max-height="statuteTableHeight"
+        border
+        :header-cell-style="{background:'#edeef0',color:'#000',fontSize:'14px',height:'40px'}" 
+        :data="statuteTableDataList"
+        v-loading="statuteTableDataListLoading"
+        @selection-change="statuteSelectionChangeHandle"
+        style="width: 100%;">
+        <el-table-column
+          fixed="left"
+          type="selection"
+          header-align="center"
+          align="center"
+          width="50">
+        </el-table-column>
+        <el-table-column
+          type="index"
+          header-align="center"
+          align="center"
+          width="80"
+          label="序号">
+        </el-table-column>
+        <template v-for='(item, index) in cols'>
+          <el-table-column
+            v-if="item.dataIndex == 'isSave'"
+            :key="index"
+            :prop='item.dataIndex'
+            :label='item.text'
+            header-align="center"
+            align="center">
+            <template slot-scope="scope">
+              <el-tag v-if="scope.row.isSave == '1'" size="small">是</el-tag>
+              <el-tag v-else size="small" type="success">否</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column
+            v-else
+            :key="index"
+            :prop='item.dataIndex'
+            :label='item.text'
+            header-align="center"
+            align="center"
+            min-width="120"
+            :show-overflow-tooltip="true">
+          </el-table-column>
+        </template>
+      </el-table>
+      <el-pagination
+        @size-change="sizeChangeHandle"
+        @current-change="currentChangeHandle"
+        :current-page="pageIndex"
+        :page-sizes="[100, 500, 1000, 5000]"
+        :page-size="pageSize"
+        :total="totalPage"
+        layout="total, sizes, prev, pager, next, jumper">
+      </el-pagination>
+    </div>
+    <!-- 遥信新增/修改 -->
+    <el-dialog
+      :title="yxDialogTitle == undefined ? '新  增' : '修  改'"
+      :close-on-click-modal="false"
+      :visible.sync="yxAddOrUpdateVisible"
+      center='center'
+      width="27.66%"
+      class="rdialog">
+      <el-form :model="yxDataFormSet" ref="yxDataFormSet" :rules="yxDataFormSetRules" class="rel-form">
+        <!-- <div style="flex:1;display:flex;flex-direction: column;"> -->
+          <el-form-item label="设备名称"  prop="equipId" class="rel-form-item" v-if="isShowId">
+            <el-select
+              :disabled="isNoEntry"
+              placeholder="请选择"
+              v-model="yxDataFormSet.equipId"
+              @click.native="getEquipList()">
+              <el-option
+                v-for="item in equipIdOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              ></el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="点位名称" prop="pointId" class="rel-form-item" v-if="isShowId">
+            <el-select
+              :disabled="isNoEntry"
+              placeholder="请选择"
+              v-model="yxDataFormSet.pointId"
+              @click.native="getPointList(null,'1')">
+              <el-option
+                v-for="item in pointIdOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              ></el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="点号" prop="yxAddress" class="rel-form-item" v-if="isShowId">
+            <el-input
+              :disabled="isNoEntry"
+              placeholder="请输入内容"
+              v-model="yxDataFormSet.yxAddress"></el-input>
+          </el-form-item>
+          <el-form-item label="是否入库" prop="isSave" class="rel-form-item">
+            <el-radio v-model="yxDataFormSet.isSave" label="0">否</el-radio>
+            <el-radio v-model="yxDataFormSet.isSave" label="1">是</el-radio>
+          </el-form-item>
+          <el-form-item label="入库步长（秒）" prop="stepSize" class="rel-form-item">
+            <el-input-number v-model="yxDataFormSet.stepSize" :step="1" :min="1"></el-input-number>
+          </el-form-item>
+        <!-- </div>         -->
+      </el-form>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="yxAddOrUpdateVisible = false">取消</el-button>
+        <el-button type="primary" @click="yxDataFormSubmit('yxDataFormSet')">确定</el-button>
+      </span>
+    </el-dialog>
+    <!-- 遥测新增/修改 -->
+    <el-dialog
+      :title="ycDialogTitle == undefined ? '新  增' : '修  改'"
+      :close-on-click-modal="false"
+      :visible.sync="ycAddOrUpdateVisible"
+      center='center'>
+      <el-form :model="ycDataFormSet" ref="ycDataFormSet" :rules="ycDataFormSetRules" class="set-device-form">
+        <div style="flex:1;display:flex;flex-direction: column;">
+          <el-form-item label="设备名称"  prop="equipId" class="set-device-form-item" v-if="isShowId">
+            <el-select
+              :disabled="isNoEntry"
+              placeholder="请选择"
+              v-model="ycDataFormSet.equipId"
+              @click.native="getEquipList()">
+              <el-option
+                v-for="item in equipIdOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              ></el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="点位名称" prop="pointId" class="set-device-form-item" v-if="isShowId">
+            <el-select
+              :disabled="isNoEntry"
+              placeholder="请选择"
+              v-model="ycDataFormSet.pointId"
+              @click.native="getPointList(null,'2')">
+              <el-option
+                v-for="item in pointIdOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              ></el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="点号" prop="ycAddress" class="set-device-form-item" v-if="isShowId">
+            <el-input
+              :disabled="isNoEntry"
+              placeholder="请输入内容"
+              v-model="ycDataFormSet.ycAddress"></el-input>
+          </el-form-item>
+          <el-form-item label="基值" prop="basicValue" class="set-device-form-item">
+            <el-input 
+              v-model="ycDataFormSet.basicValue"
+              type="number"
+              min="0" 
+              placeholder="请输入"></el-input>
+          </el-form-item>
+          <el-form-item label="系数1" prop="coeffcient1" class="set-device-form-item">
+            <el-input 
+              v-model="ycDataFormSet.coeffcient1"
+              type="number"
+              min="0" 
+              placeholder="请输入"></el-input>
+          </el-form-item>
+          <el-form-item label="系数2" prop="coeffcient2" class="set-device-form-item">
+            <el-input 
+              v-model="ycDataFormSet.coeffcient2"
+              type="number"
+              min="0" 
+              placeholder="请输入"></el-input>
+          </el-form-item>
+          <el-form-item label="有效上限" prop="validUpLimit" class="set-device-form-item">
+            <el-input 
+              v-model="ycDataFormSet.validUpLimit"
+              type="number"
+              min="-2147483648"
+              max="2147483647"
+              placeholder="请输入"></el-input>
+          </el-form-item>
+          <el-form-item label="有效下限" prop="validDownLimit" class="set-device-form-item">
+            <el-input 
+              v-model="ycDataFormSet.validDownLimit"
+              type="number"
+              min="-2147483648" 
+              max="2147483647"
+              placeholder="请输入"></el-input>
+          </el-form-item>
+        </div>
+        <div style="flex:1;display:flex;flex-direction: column;">
+          <el-form-item label="有效梯度" prop="validGradient" class="set-device-form-item">
+            <el-input 
+              v-model="ycDataFormSet.validGradient"
+              type="number"
+              placeholder="请输入"></el-input>
+          </el-form-item>
+          <el-form-item label="是否入库" prop="isSave" class="set-device-form-item">
+            <el-radio v-model="ycDataFormSet.isSave" label="0">否</el-radio>
+            <el-radio v-model="ycDataFormSet.isSave" label="1">是</el-radio>
+          </el-form-item>
+          <el-form-item label="入库步长（秒）" prop="stepSize" class="set-device-form-item">
+            <el-input-number v-model="ycDataFormSet.stepSize" :step="1" :min="1"></el-input-number>
+          </el-form-item>
+          <el-form-item label="一般等级越上限阀值" prop="generalUpLimit" class="set-device-form-item">
+            <el-input 
+              v-model="ycDataFormSet.generalUpLimit"
+              type="number"
+              placeholder="请输入"></el-input>
+          </el-form-item>
+          <el-form-item label="一般等级越下限阀值" prop="generalDownLimit" class="set-device-form-item">
+            <el-input 
+              v-model="ycDataFormSet.generalDownLimit"
+              type="number"
+              placeholder="请输入"></el-input>
+          </el-form-item>
+          <el-form-item label="严重等级越上限" prop="severityUpLimit" class="set-device-form-item">
+            <el-input 
+              v-model="ycDataFormSet.severityUpLimit"
+              type="number"
+              placeholder="请输入"></el-input>
+          </el-form-item>
+          <el-form-item label="严重等级越下限" prop="severityDownLimit" class="set-device-form-item">
+            <el-input 
+              v-model="ycDataFormSet.severityDownLimit"
+              type="number"
+              placeholder="请输入"></el-input>
+          </el-form-item>
+        </div>        
+      </el-form>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="ycAddOrUpdateVisible = false">取消</el-button>
+        <el-button type="primary" @click="ycDataFormSubmit('ycDataFormSet')">确定</el-button>
+      </span>
+    </el-dialog>
+    <!-- 遥控新增/修改 -->
+    <el-dialog
+      :title="ykDialogTitle == undefined ? '新  增' : '修  改'"
+      :close-on-click-modal="false"
+      :visible.sync="ykAddOrUpdateVisible"
+      center='center'
+      width="27.66%"
+      class="rdialog">
+      <el-form :model="ykDataFormSet" ref="ykDataFormSet" :rules="ykDataFormSetRules" class="rel-form">
+        <!-- <div style="flex:1;display:flex;flex-direction: column;"> -->
+          <el-form-item label="设备名称"  prop="equipId" class="rel-form-item" v-if="isShowId">
+            <el-select
+              :disabled="isNoEntry"
+              placeholder="请选择"
+              v-model="ykDataFormSet.equipId"
+              @click.native="getEquipList()">
+              <el-option
+                v-for="item in equipIdOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              ></el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="点位名称" prop="pointId" class="rel-form-item" v-if="isShowId">
+            <el-select
+              :disabled="isNoEntry"
+              placeholder="请选择"
+              v-model="ykDataFormSet.pointId"
+              @click.native="getPointList(null,'3')">
+              <el-option
+                v-for="item in pointIdOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              ></el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="点号" prop="ykAddress" class="rel-form-item" v-if="isShowId">
+            <el-input
+              :disabled="isNoEntry"
+              placeholder="请输入内容"
+              v-model="ykDataFormSet.ykAddress"></el-input>
+          </el-form-item>
+        <!-- </div>        -->
+      </el-form>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="ykAddOrUpdateVisible = false">取消</el-button>
+        <el-button type="primary" @click="ykDataFormSubmit('ykDataFormSet')">确定</el-button>
+      </span>
+    </el-dialog>
+    <!-- 遥调新增/修改 -->
+    <el-dialog
+      :title="ytDialogTitle == undefined ? '新  增' : '修  改'"
+      :close-on-click-modal="false"
+      :visible.sync="ytAddOrUpdateVisible"
+      center='center'
+      width="27.66%"
+      class="rdialog">
+      <el-form :model="ytDataFormSet" ref="ytDataFormSet" :rules="ytDataFormSetRules" class="rel-form">
+        <!-- <div style="flex:1;display:flex;flex-direction: column;"> -->
+          <el-form-item label="设备名称"  prop="equipId" class="rel-form-item" v-if="isShowId">
+            <el-select
+              :disabled="isNoEntry"
+              placeholder="请选择"
+              v-model="ytDataFormSet.equipId"
+              @click.native="getEquipList()">
+              <el-option
+                v-for="item in equipIdOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              ></el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="点位名称" prop="pointId" class="rel-form-item" v-if="isShowId">
+            <el-select
+              :disabled="isNoEntry"
+              placeholder="请选择"
+              v-model="ytDataFormSet.pointId"
+              @click.native="getPointList(null,'4')">
+              <el-option
+                v-for="item in pointIdOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              ></el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="点号" prop="ytAddress" class="rel-form-item" v-if="isShowId">
+            <el-input
+              :disabled="isNoEntry"
+              placeholder="请输入内容"
+              v-model="ytDataFormSet.ytAddress"></el-input>
+          </el-form-item>
+        <!-- </div>        -->
+      </el-form>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="ytAddOrUpdateVisible = false">取消</el-button>
+        <el-button type="primary" @click="ytDataFormSubmit('ytDataFormSet')">确定</el-button>
+      </span>
+    </el-dialog>
+    <!-- 遥脉新增/修改 -->
+    <el-dialog
+      :title="ymDialogTitle == undefined ? '新  增' : '修  改'"
+      :close-on-click-modal="false"
+      :visible.sync="ymAddOrUpdateVisible"
+      center='center'>
+      <el-form :model="ymDataFormSet" ref="ymDataFormSet" :rules="ymDataFormSetRules" class="set-device-form">
+        <div style="flex:1;display:flex;flex-direction: column;">
+          <el-form-item label="设备名称"  prop="equipId" class="set-device-form-item" v-if="isShowId">
+            <el-select
+              :disabled="isNoEntry"
+              placeholder="请选择"
+              v-model="ymDataFormSet.equipId"
+              @click.native="getEquipList()">
+              <el-option
+                v-for="item in equipIdOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              ></el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="点位名称" prop="pointId" class="set-device-form-item" v-if="isShowId">
+            <el-select
+              :disabled="isNoEntry"
+              placeholder="请选择"
+              v-model="ymDataFormSet.pointId"
+              @click.native="getPointList(null,'5')">
+              <el-option
+                v-for="item in pointIdOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              ></el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="点号" prop="ymAddress" class="set-device-form-item" v-if="isShowId">
+            <el-input
+              :disabled="isNoEntry"
+              placeholder="请输入内容"
+              v-model="ymDataFormSet.ymAddress"></el-input>
+          </el-form-item>
+          <el-form-item label="基值" prop="basicValue" class="set-device-form-item">
+            <el-input 
+              v-model="ymDataFormSet.basicValue"
+              type="number"
+              min="0" 
+              placeholder="请输入"></el-input>
+          </el-form-item>
+          <el-form-item label="系数1" prop="coeffcient1" class="set-device-form-item">
+            <el-input 
+              v-model="ymDataFormSet.coeffcient1"
+              type="number"
+              min="0" 
+              placeholder="请输入"></el-input>
+          </el-form-item>
+          <el-form-item label="系数2" prop="coeffcient2" class="set-device-form-item">
+            <el-input 
+              v-model="ymDataFormSet.coeffcient2"
+              type="number"
+              min="0" 
+              placeholder="请输入"></el-input>
+          </el-form-item>         
+        </div>
+        <div style="flex:1;display:flex;flex-direction: column;">
+          <el-form-item label="有效梯度" prop="validGradient" class="set-device-form-item">
+            <el-input 
+              v-model="ymDataFormSet.validGradient"
+              type="number"
+              placeholder="请输入"></el-input>
+          </el-form-item>
+          <el-form-item label="是否入库" prop="isSave" class="set-device-form-item">
+            <el-radio v-model="ymDataFormSet.isSave" label="0">否</el-radio>
+            <el-radio v-model="ymDataFormSet.isSave" label="1">是</el-radio>
+          </el-form-item>
+          <el-form-item label="入库步长（秒）" prop="stepSize" class="set-device-form-item">
+            <el-input-number v-model="ymDataFormSet.stepSize" :step="1" :min="1"></el-input-number>
+          </el-form-item>
+          <el-form-item label="有效上限" prop="validUpLimit" class="set-device-form-item">
+            <el-input 
+              v-model="ymDataFormSet.validUpLimit"
+              type="number"
+              min="-2147483648"
+              max="2147483647"
+              placeholder="请输入"></el-input>
+          </el-form-item>
+          <el-form-item label="有效下限" prop="validDownLimit" class="set-device-form-item">
+            <el-input 
+              v-model="ymDataFormSet.validDownLimit"
+              type="number"
+              min="-2147483648" 
+              max="2147483647"
+              placeholder="请输入"></el-input>
+          </el-form-item>
+        </div>
+      </el-form>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="ymAddOrUpdateVisible = false">取消</el-button>
+        <el-button type="primary" @click="ymDataFormSubmit('ymDataFormSet')">确定</el-button>
+      </span>
+    </el-dialog>
+  </div>
+</template>
+<script>
+/**
+ * 初次加载，组织机构默认用户当前所属组织机构；站点默认全部（即为空）
+ * 通讯设备表格根据组织机构和站点值加载
+ * 选择规约类型和设备（勾选），然后点击生成规约按钮（生成完毕，默认点击所选的第一个设备和第一个规约tab名）
+ * 点击设备名称，切换右侧表格数据
+ */
+export default {
+  data () {
+    // 点号去重校验
+    var validateYmAddress = (rule, value, callback) => {
+      // console.log(rule, value, callback)
+      if(rule.field == "yxAddress") {
+        if(this.yxDialogTitle == undefined) {
+          this.$http({
+            url: this.$http.adornUrl('/admin/tyxrule/checkAddress'),
+            method: 'get',
+            params: this.$http.adornParams({
+              checkAddress: value
+            })
+          }).then(({data}) => {
+            if (data && data.code === 0 && data.data.status === false) {
+              callback(new Error(data.data.msg))
+            }else {
+              callback()
+            }
+          })
+        } else {
+          callback()
+        }
+      } else if(rule.field == "ycAddress") {
+        if(this.ycDialogTitle == undefined) {
+          this.$http({
+            url: this.$http.adornUrl('/admin/tycrule/checkAddress'),
+            method: 'get',
+            params: this.$http.adornParams({
+              checkAddress: value
+            })
+          }).then(({data}) => {
+            if (data && data.code === 0 && data.data.status === false) {
+              callback(new Error(data.data.msg))
+            }else {
+              callback()
+            }
+          })
+        } else {
+          callback()
+        }
+      } else if(rule.field == "ykAddress") {
+        if(this.ykDialogTitle == undefined) {
+          this.$http({
+            url: this.$http.adornUrl('/admin/tykrule/checkAddress'),
+            method: 'get',
+            params: this.$http.adornParams({
+              checkAddress: value
+            })
+          }).then(({data}) => {
+            if (data && data.code === 0 && data.data.status === false) {
+              callback(new Error(data.data.msg))
+            }else {
+              callback()
+            }
+          })
+        } else {
+          callback()
+        }
+      } else if(rule.field == "ytAddress") {
+        if(this.ytDialogTitle == undefined) {
+          this.$http({
+            url: this.$http.adornUrl('/admin/tytrule/checkAddress'),
+            method: 'get',
+            params: this.$http.adornParams({
+              checkAddress: value
+            })
+          }).then(({data}) => {
+            if (data && data.code === 0 && data.data.status === false) {
+              callback(new Error(data.data.msg))
+            }else {
+              callback()
+            }
+          })
+        } else {
+          callback()
+        }
+      } else if(rule.field == "ymAddress") {
+        if(this.ymDialogTitle == undefined) {
+          this.$http({
+            url: this.$http.adornUrl('/admin/tymrule/checkAddress'),
+            method: 'get',
+            params: this.$http.adornParams({
+              checkAddress: value
+            })
+          }).then(({data}) => {
+            if (data && data.code === 0 && data.data.status === false) {
+              callback(new Error(data.data.msg))
+            }else {
+              callback()
+            }
+          })
+        } else {
+          callback()
+        }
+      }
+     /*  this.$http({
+        url: this.$http.adornUrl(url),
+        method: 'get',
+        params: this.$http.adornParams({
+          checkAddress: value
+        })
+      }).then(({data}) => {
+        if (data && data.code === 0 && data.data.status === false) {
+          callback(new Error(data.data.msg))
+        }else {
+          callback()
+        }
+      }) */
+    }
+    return {
+      pointIdOptions: [],  // 点位名称下拉框
+      equipIdOptions: [],  // 设备名称下拉框
+      load: false,
+      // 左侧上方 选择表单
+      produceDataForm: {
+        orgSelectedOptions: [],  // 组织机构
+        stationSelectedOptions: null,  // 站点
+        pointTypeSelectedOptions: null  // 点位类型
+      },
+      organizationOptions: [],  // 组织机构下拉值
+      stationOptions: [],   // 站点下拉值
+      pointTypeOptions: [
+        {
+        'label': '全部',
+        'value': '0'
+        },
+        {
+        'label': '遥信',
+        'value': '1'
+        },
+        {
+        'label': '遥测',
+        'value': '2'
+        },
+        {
+        'label': '遥控',
+        'value': '3'
+        },
+        {
+        'label': '遥调',
+        'value': '4'
+        },
+        {
+        'label': '遥脉',
+        'value': '5'
+        },
+      ],  // 点位类型下拉值
+      // 左侧下方 表格
+      deviceTableDataListLoading: false,
+      deviceTableData: [],
+      deviceTableDataListSelections: [],
+      clickedCell: null,  // 设备表格点击单元格ID
+      // 右侧Tab
+      activeName: '1',
+      // 右侧表格
+      statuteTableHeight: '',
+      secrchDataForm: {},
+      statuteTableDataList: [],
+      statuteDataListSelections: [],
+      statuteTableDataListLoading: false,
+      cols: [
+        {
+        label: '',
+        prop: ''
+        }
+      ],
+      colDatas: [],  // 保存表格列数据
+      pageSize: 100,
+      totalPage: 0,
+      pageIndex: 1,
+      // 遥信 弹框
+      yxDialogTitle: null,
+      yxAddOrUpdateVisible: false,
+      yxDataFormSet: {
+        equipId: null,
+        pointId: null,
+        yxAddress: null,
+        isSave: '1',
+        stepSize: 300
+      },
+      yxDataFormSetRules: {
+        equipId: [ { required: true, message: '设备名称不能为空', trigger: 'blur' } ],
+        pointId: [ { required: true, message: '点位名称不能为空', trigger: 'blur' } ],
+        yxAddress: [
+          { required: true, message: '点号不能为空', trigger: 'blur' },
+          { validator: validateYmAddress,  trigger: 'blur' }
+        ]
+      },
+      // 遥测 弹框
+      ycDialogTitle: null,
+      ycAddOrUpdateVisible: false,
+      ycDataFormSet: {
+        equipId: null,
+        pointId: null,
+        ycAddress: null,
+        basicValue: 0,
+        coeffcient1: 1,
+        coeffcient2: 1,
+        validUpLimit: 2147483647,
+        validDownLimit: -2147483648,
+        validGradient: 0,
+        isSave: '1',
+        stepSize: 300,
+        generalUpLimit: null,
+        generalDownLimit: null,
+        severityUpLimit: null,
+        severityDownLimit: null
+      },
+      ycDataFormSetRules: {
+        equipId: [ { required: true, message: '设备名称不能为空', trigger: 'blur' } ],
+        pointId: [ { required: true, message: '点位名称不能为空', trigger: 'blur' } ],
+        ycAddress: [
+          { required: true, message: '点号不能为空', trigger: 'blur' },
+          { validator: validateYmAddress,  trigger: 'blur' }
+        ]
+      },
+      // 遥控 弹框
+      ykDialogTitle: null,
+      ykAddOrUpdateVisible: false,
+      ykDataFormSet: {
+        equipId: null,
+        pointId: null,
+        ykAddress: null
+      },
+      ykDataFormSetRules: {
+        equipId: [ { required: true, message: '设备名称不能为空', trigger: 'blur' } ],
+        pointId: [ { required: true, message: '点位名称不能为空', trigger: 'blur' } ],
+        ykAddress: [
+          { required: true, message: '点号不能为空', trigger: 'blur' },
+          { validator: validateYmAddress,  trigger: 'blur' }
+        ]
+      },
+      // 遥调 弹框
+      ytDialogTitle: null,
+      ytAddOrUpdateVisible: false,
+      ytDataFormSet: {
+        equipId: null,
+        pointId: null,
+        ytAddress: null
+      },
+      ytDataFormSetRules: {
+        equipId: [ { required: true, message: '设备名称不能为空', trigger: 'blur' } ],
+        pointId: [ { required: true, message: '点位名称不能为空', trigger: 'blur' } ],
+        ytAddress: [
+          { required: true, message: '点号不能为空', trigger: 'blur' },
+          { validator: validateYmAddress,  trigger: 'blur' }
+        ]
+      },
+      // 遥脉 弹框
+      ymDialogTitle: null,
+      ymAddOrUpdateVisible: false,
+      ymDataFormSet: {
+        equipId: null,
+        pointId: null,
+        ymAddress: null,
+        basicValue: 0,
+        coeffcient1: 1,
+        coeffcient2: 1,
+        validUpLimit: 2147483647,
+        validDownLimit: -2147483648,
+        validGradient: 0,
+        isSave: '1',
+        stepSize: 300
+      },
+      ymDataFormSetRules: {
+        equipId: [ { required: true, message: '设备名称不能为空', trigger: 'blur' } ],
+        pointId: [ { required: true, message: '点位名称不能为空', trigger: 'blur' } ],
+        ymAddress: [
+          { required: true, message: '点号不能为空', trigger: 'blur' },
+          { validator: validateYmAddress,  trigger: 'blur' }
+        ]
+      },
+      isNoEntry: false,  // 设备、点位、点号 是否禁止输入
+      isShowId: true,   // 设备、点位、点号 是否显示
+      
+    }
+  },
+  created () {
+    this.statuteTableHeight = window.innerHeight - 320
+  },
+  mounted () {
+    this.getOrgList()
+    this.getStationNameLists()
+    // this.getDeviceTableData()
+    document.getElementById('statuteManagement').style.height = (window.innerHeight-170)+'px'
+    window.onresize = function () {
+      if(document.getElementById('statuteManagement')){
+        this.statuteTableHeight = window.innerHeight - 320
+      }
+    }
+  },
+  watch: {
+    // 监听组织机构选框值改变，清空站点选择值
+    'produceDataForm.orgSelectedOptions': function () {
+      // console.log(this.produceDataForm.stationSelectedOptions)
+      if(this.produceDataForm.stationSelectedOptions == null) {
+        this.getDeviceTableData()
+      } else {
+        this.produceDataForm.stationSelectedOptions = null
+      }     
+      this.stationOptions = []
+    },
+    // 监听站点选择值改变，重新加载设备列表
+    'produceDataForm.stationSelectedOptions': function (val) {
+      this.getDeviceTableData() 
+    },
+    // 新增、修改 设备名称切换，情况点位值
+    'yxDataFormSet.equipId': function () {
+      if(this.yxDialogTitle == undefined) {
+        this.pointIdOptions = []
+        this.yxDataFormSet.pointId = null
+      }     
+    },
+    'ycDataFormSet.equipId': function () {
+      if(this.ycDialogTitle == undefined) {
+        this.pointIdOptions = []
+        this.ycDataFormSet.pointId = null
+      }     
+    },
+    'ykDataFormSet.equipId': function () {
+      if(this.ykDialogTitle == undefined) {
+        this.pointIdOptions = []
+        this.ykDataFormSet.pointId = null
+      }     
+    },
+    'ytDataFormSet.equipId': function () {
+      if(this.ytDialogTitle == undefined) {
+        this.pointIdOptions = []
+        this.ytDataFormSet.pointId = null
+      }     
+    },
+    'ymDataFormSet.equipId': function () {
+      if(this.ymDialogTitle == undefined) {
+        this.pointIdOptions = []
+        this.ymDataFormSet.pointId = null
+      }      
+    },
+  },
+  methods: {
+    // 加载组织机构下拉框 默认登录用户组织
+    getOrgList () {
+      this.$http({
+        url: this.$http.adornUrl('/admin/tstation/org'),
+        method: 'post',
+        data: this.$http.adornParams({})
+      }).then(({data}) => {
+        if (data && data.code === 0) {
+          this.organizationOptions = data.list
+          if(this.produceDataForm.orgSelectedOptions.length == 0) {
+            this.produceDataForm.orgSelectedOptions = JSON.parse(window.sessionStorage.getItem('userInfo')).orgId.split() 
+          }      
+        }
+      })
+    },
+    // 加载站点下拉框 默认全部
+    getStationNameLists () {
+      // console.log('组织机构' + this.produceDataForm.orgSelectedOptions)
+      this.$http({
+        url: this.$http.adornUrl('/admin/tstation/station'),
+        method: 'post',
+        data: this.$http.adornParams({
+          'orgId': this.produceDataForm.orgSelectedOptions[this.produceDataForm.orgSelectedOptions.length - 1]
+        })
+      }).then(({data}) => {
+        if (data && data.code === 0) {
+          this.stationOptions = data.list
+        }
+      })
+    },
+    // 生成规约按钮  点位类型已选 列表选中数大于0 执行
+    generatingPointTable() {
+      // console.log(this.deviceTableDataListSelections)
+      if(this.produceDataForm.pointTypeSelectedOptions != null && this.deviceTableDataListSelections.length > 0) { 
+        // console.log(this.produceDataForm.pointTypeSelectedOptions)
+        // console.log(this.deviceTableDataListSelections)    
+        this.load = true   
+        let commIds = [] , len = this.deviceTableDataListSelections.length
+        for(let i=0;i<len;i++) {
+          commIds.push(this.deviceTableDataListSelections[i].commId)
+        }
+        // console.log(commIds)
+        this.$http({
+          url: this.$http.adornUrl('/admin/tprotocol/saverule'),
+          method: 'post',
+          data: this.$http.adornParams({
+            'pointType': this.produceDataForm.pointTypeSelectedOptions.toString(),
+            'commIds': commIds
+          })
+        }).then(({data}) => {
+          // console.log(data)
+          this.load = false
+          if (data && data.code === 0) {
+            // 生成完毕 默认选择的第一个设备点击，右侧tab默认选择的类型，如果是全部就是默认第一个
+            this.clickedCell = this.deviceTableDataListSelections[0].commId
+            this.handleClick({'name': this.produceDataForm.pointTypeSelectedOptions == '0' ? '1' : this.produceDataForm.pointTypeSelectedOptions})
+          } else {
+            this.$message({
+              message: '生成规约失败',
+              type: 'error',
+              duration: 1500,
+              onClose: () => {}
+            })
+          }
+        })
+      } else {
+        this.$message({
+          message: '请选择点位类型和设备',
+          type: 'error',
+          duration: 1500,
+          onClose: () => {}
+        })
+      }
+    },   
+    // 左侧下方表格 数据获取
+    getDeviceTableData () {
+      // console.log('组织机构' + this.produceDataForm.orgSelectedOptions)
+      // console.log('站点' + this.produceDataForm.stationSelectedOptions)
+      this.deviceTableDataListLoading = true
+      this.$http({
+        url: this.$http.adornUrl('/admin/tprotocol/commequip'),
+        method: 'post',
+        data: this.$http.adornParams({
+          'orgId': this.produceDataForm.orgSelectedOptions.length == 0 ? JSON.parse(window.sessionStorage.getItem('userInfo')).orgId : this.produceDataForm.orgSelectedOptions[this.produceDataForm.orgSelectedOptions.length-1],
+          'stationId': this.produceDataForm.stationSelectedOptions == '' ? null : this.produceDataForm.stationSelectedOptions
+        })
+      }).then(({data}) => {
+        if (data && data.code === 0) {
+          this.deviceTableData= data.data         
+        }
+        this.deviceTableDataListLoading = false
+      })
+    },
+    // 左侧下方表格 多选
+    selectionChangeHandle (val) {
+      this.deviceTableDataListSelections = val
+    },
+    // 左侧下方表格 单元格点击,查询生成的规约表 
+    clickedDevice (row, column, cell, event) {
+      // console.log(row, column, cell, event)
+      // console.log(row.commId)
+      // console.log(this.activeName)
+      this.clickedCell = row.commId
+      // if(this.activeName != null && this.activeName != 0) {
+        this.getStatuteTableDataList()
+      // } else {
+      //   this.$message({
+      //     message: '请选择规约类型',
+      //     type: 'warning',
+      //     duration: 1500,
+      //     onClose: () => {}
+      //   }) 
+      // }      
+    },
+    // 左侧下方表格 单元格点击样式
+    cellStyle ({row, column, rowIndex, columnIndex}) {
+      if(row.commId == this.clickedCell) {
+        return 'click-cell'
+      }
+    },
+    // 获取设备下拉框
+    getEquipList () {
+      this.$http({
+        url: this.$http.adornUrl('/admin/tprotocol/equipList'),
+        method: 'post',
+        data: this.$http.adornData({
+          'commId': this.clickedCell
+        })
+      }).then(({data}) => {
+        if(data && data.code === 0) {
+          this.equipIdOptions = data.data
+        }else {
+          this.$message.error(data.msg)
+        }
+      })
+    },
+    // 获取点位下拉框
+    getPointList (id,val) {
+      let equipId = id
+      if (val == '1') {
+        if (this.yxDataFormSet.equipId != null) {
+          equipId = this.yxDataFormSet.equipId
+        } else {
+          this.$message({
+            message: '请先选择设备',
+            type: 'error',
+            duration: 1500,
+            onClose: () => {}
+          })
+        }        
+      } else if(val == '2') {
+        if (this.ycDataFormSet.equipId != null) {
+          equipId = this.ycDataFormSet.equipId
+        } else {
+          this.$message({
+            message: '请先选择设备',
+            type: 'error',
+            duration: 1500,
+            onClose: () => {}
+          })
+        }
+      } else if(val == '3') {
+        if (this.ykDataFormSet.equipId != null) {
+          equipId = this.ykDataFormSet.equipId
+        } else {
+          this.$message({
+            message: '请先选择设备',
+            type: 'error',
+            duration: 1500,
+            onClose: () => {}
+          })
+        } 
+      } else if(val == '4') {
+        if (this.ytDataFormSet.equipId != null) {
+          equipId = this.ytDataFormSet.equipId
+        } else {
+          this.$message({
+            message: '请先选择设备',
+            type: 'error',
+            duration: 1500,
+            onClose: () => {}
+          })
+        } 
+      } else if(val == '5') {
+        if (this.ymDataFormSet.equipId != null) {
+          equipId = this.yxDataFormSet.equipId
+        } else {
+          this.$message({
+            message: '请先选择设备',
+            type: 'error',
+            duration: 1500,
+            onClose: () => {}
+          })
+        } 
+      }
+      this.$http({
+        url: this.$http.adornUrl('/admin/tprotocol/pointList'),
+        method: 'post',
+        data: this.$http.adornData({
+          'pointType': this.activeName,
+          'equipId': equipId
+        })
+      }).then(({data}) => {
+        if(data && data.code === 0) {
+          this.pointIdOptions = data.data
+        }else {
+          this.$message.error(data.msg)
+        }
+      })
+    },
+    // 右侧表格 新增  根据选择的tab 展示对应的弹框内容
+    addStatute () {
+      // console.log(this.activeName)
+      this.isNoEntry = false
+      this.isShowId = true
+      if(this.activeName == '1') {
+        this.yxAddOrUpdateVisible = true
+        if (this.$refs['yxDataFormSet'] !== undefined) {
+          this.$refs['yxDataFormSet'].resetFields()
+        }       
+        this.yxDialogTitle = null
+      } else if(this.activeName == '2') {
+        this.ycAddOrUpdateVisible = true
+        if (this.$refs['ycDataFormSet'] !== undefined) {
+          this.$refs['ycDataFormSet'].resetFields()
+        }
+        this.ycDialogTitle = null
+      } else if(this.activeName == '3') {
+        this.ykAddOrUpdateVisible = true
+        if (this.$refs['ycDataFormSet'] !== undefined) {
+          this.$refs['ycDataFormSet'].resetFields()
+        }
+        this.ykDialogTitle = null
+      } else if(this.activeName == '4') {
+        this.ytAddOrUpdateVisible = true
+        if (this.$refs['ytDataFormSet'] !== undefined) {
+          this.$refs['ytDataFormSet'].resetFields()
+        }
+        this.ytDialogTitle = null
+      } else if(this.activeName == '5') {
+        this.ymAddOrUpdateVisible = true
+        if (this.$refs['ymDataFormSet'] !== undefined) {
+          this.$refs['ymDataFormSet'].resetFields()
+        }
+        this.ymDialogTitle = null
+      }
+    },
+    // 右侧表格 修改
+    editStatute () {
+      // console.log(this.statuteDataListSelections)
+      this.pointIdOptions = []   
+      let len = this.statuteDataListSelections.length
+      if(len == 1) {
+        this.getEquipList()
+        this.getPointList(this.statuteDataListSelections[0].equipId)
+        this.isShowId = true
+        this.isNoEntry = true       
+        if(this.activeName == '1') {
+          this.yxAddOrUpdateVisible = true
+          this.yxDialogTitle = this.statuteDataListSelections[0].yxId
+          this.$http({
+            url: this.$http.adornUrl(`/admin/tyxrule/info/${this.statuteDataListSelections[0].yxId}`),
+            method: 'get',
+            params: this.$http.adornParams()
+          }).then(({data})=>{
+            if(data && data.code === 0) {             
+              this.$nextTick(function () {
+                this.yxDataFormSet = Object.assign({}, data.tYxRule)
+                this.yxDataFormSet.isSave = data.tYxRule.isSave.toString()
+                // this.yxDataFormSet.equipId = data.tYxRule.equipId
+                // this.yxDataFormSet.pointId = data.tYxRule.pointId.toString()
+              })
+            }
+          })          
+        } else if(this.activeName == '2') {
+          this.ycAddOrUpdateVisible = true
+          this.ycDialogTitle = this.statuteDataListSelections[0].ycId  
+          this.$http({
+            url: this.$http.adornUrl(`/admin/tycrule/info/${this.statuteDataListSelections[0].ycId}`),
+            method: 'get',
+            params: this.$http.adornParams()
+          }).then(({data})=>{
+            if(data && data.code === 0) {                       
+              this.$nextTick(function () {
+                this.ycDataFormSet = Object.assign({}, data.tYcRule)
+                this.ycDataFormSet.isSave = data.tYcRule.isSave.toString()
+              })
+            }
+          })         
+        } else if(this.activeName == '3') {
+          this.ykAddOrUpdateVisible = true
+          this.ykDialogTitle = this.statuteDataListSelections[0].ykId  
+          this.$http({
+            url: this.$http.adornUrl(`/admin/tykrule/info/${this.statuteDataListSelections[0].ykId}`),
+            method: 'get',
+            params: this.$http.adornParams()
+          }).then(({data})=>{
+            if(data && data.code === 0) {
+              this.$nextTick(function () {
+                this.ykDataFormSet = Object.assign({}, data.tYkRule)
+              })
+            }
+          })          
+        } else if(this.activeName == '4') {
+          this.ytAddOrUpdateVisible = true
+          this.ytDialogTitle = this.statuteDataListSelections[0].ytId  
+          this.$http({
+            url: this.$http.adornUrl(`/admin/tytrule/info/${this.statuteDataListSelections[0].ytId}`),
+            method: 'get',
+            params: this.$http.adornParams()
+          }).then(({data})=>{
+            if(data && data.code === 0) {
+              this.$nextTick(function () {
+                this.ytDataFormSet = Object.assign({}, data.tYtRule)
+              })
+            }
+          })
+        } else if(this.activeName == '5') {
+          this.ymAddOrUpdateVisible = true
+          this.ymDialogTitle = this.statuteDataListSelections[0].ymId  
+          this.$http({
+            url: this.$http.adornUrl(`/admin/tymrule/info/${this.statuteDataListSelections[0].ymId}`),
+            method: 'get',
+            params: this.$http.adornParams()
+          }).then(({data})=>{
+            if(data && data.code === 0) {
+              this.$nextTick(function () {
+                this.ymDataFormSet = Object.assign({}, data.tYmRule)
+                this.ymDataFormSet.isSave = data.tYmRule.isSave.toString()
+              })
+            }
+          })
+        }
+      } else if(len > 1) {
+        this.isShowId = false
+        this.isNoEntry = true 
+        // let equipArr = this.statuteDataListSelections.map(item => {
+        //   return item.equipId
+        // })
+        // console.log(equipArr)
+        if(this.activeName == '1') {
+          this.yxAddOrUpdateVisible = true
+          if (this.$refs['yxDataFormSet'] !== undefined) {
+            this.$refs['yxDataFormSet'].resetFields()
+          }
+          this.yxDialogTitle = '1'
+        } else if(this.activeName == '2') {
+          this.ycAddOrUpdateVisible = true
+          if (this.$refs['ycDataFormSet'] !== undefined) {
+            this.$refs['ycDataFormSet'].resetFields()
+          }
+          this.ycDialogTitle = '2'
+        } else if(this.activeName == '3') {
+          this.ykAddOrUpdateVisible = true
+          this.$refs['ykDataFormSet'].resetFields()
+          this.ykDialogTitle = '3'
+        } else if(this.activeName == '4') {
+          this.ytAddOrUpdateVisible = true
+          if (this.$refs['ytDataFormSet'] !== undefined) {
+            this.$refs['ytDataFormSet'].resetFields()
+          }
+          this.ytDialogTitle = '4'
+        } else if(this.activeName == '5') {
+          this.ymAddOrUpdateVisible = true
+          if (this.$refs['ymDataFormSet'] !== undefined) {
+            this.$refs['ymDataFormSet'].resetFields()
+          }
+          this.ymDialogTitle = '5'
+        }
+      }
+
+    },
+    // 右侧表格 删除
+    deleteStatute () {
+      this.$confirm('确定删除操作?', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(() => {
+        let url = null, Id = {}, equipArr = []
+        if(this.activeName == 1) {
+          equipArr = this.statuteDataListSelections.map(item => {
+            return item.yxId
+          })
+          url = '/admin/tyxrule/delete' 
+        } else if(this.activeName == 2) {
+          equipArr = this.statuteDataListSelections.map(item => {
+            return item.ycId
+          })
+          url = '/admin/tycrule/delete'
+        } else if(this.activeName == 3) {
+          equipArr = this.statuteDataListSelections.map(item => {
+            return item.ykId
+          })
+          url = '/admin/tykrule/delete'
+        } else if(this.activeName == 4) {
+          equipArr = this.statuteDataListSelections.map(item => {
+            return item.ytId
+          })
+          url = '/admin/tytrule/delete'
+        } else if(this.activeName == 5) {
+          equipArr = this.statuteDataListSelections.map(item => {
+            return item.ymId
+          })
+          url = '/admin/tymrule/delete'
+        }
+        this.$http({
+          url: this.$http.adornUrl(url),
+          method: 'post',
+          data: this.$http.adornData(equipArr,false)
+        }).then(({data}) => {
+          if (data && data.code === 0) {
+            this.$options.methods.getStatuteTableDataList.bind(this)(1)
+          }else {
+            this.$message.error(data.msg)
+          }
+        })
+      })     
+    },
+    // 右侧 tab栏
+    handleClick(tab, event) {
+      // console.log(tab)
+      // console.log(tab.name)
+      // console.log(this.statuteDataListSelections)      
+      if(this.clickedCell != null) {
+        this.statuteDataListSelections = []
+        this.activeName = tab.name == '0' ? '1' : tab.name
+        this.getStatuteTableDataList(1)
+      } else {
+        this.$message({
+          message: '请选择通讯设备',
+          type: 'warning',
+          duration: 1500,
+          onClose: () => {}
+        }) 
+      }
+    },
+    // 右侧表格 数据获取
+    getStatuteTableDataList (pageIndex) {
+      if(pageIndex) {
+        this.pageIndex = pageIndex
+      }
+      // console.log(this.activeName)
+      // console.log(this.clickedCell)
+      this.statuteTableDataListLoading = true
+      this.cols = []
+      this.statuteTableDataList = []
+      let url = null
+      if(this.activeName == 1 || this.activeName == 0) {
+        this.activeName == 1   
+        url = '/admin/tyxrule/list'
+      } else if(this.activeName == 2) {
+        url = '/admin/tycrule/list'
+      } else if(this.activeName == 3) {
+        url = '/admin/tykrule/list'
+      } else if(this.activeName == 4) {
+        url = '/admin/tytrule/list'
+      } else if(this.activeName == 5) {
+        url = '/admin/tymrule/list'
+      }
+      this.$http({
+        url: this.$http.adornUrl('/admin/tycrule/header'),
+        method: 'post',
+        data: this.$http.adornParams({
+          'pointType': this.activeName == 0 ? '1' : this.activeName.toString()
+        })
+      }).then(({data}) => {
+        if (data && data.code === 0) {
+          // let arr = [{dataIndex: "", text: ""},{dataIndex: "index", text: "序号"}]
+          // this.cols = arr.concat(data.data)
+          // this.cols = data.data
+          this.colDatas = data.data
+        }
+      }).then(()=>{
+        this.$http({
+          url: this.$http.adornUrl(url),
+          method: 'post',
+          data: this.$http.adornParams({
+            'commId': this.clickedCell.toString(),
+            'pointType': this.activeName.toString(),
+            'pageNumber': this.pageIndex.toString(),
+            'pageSize': this.pageSize.toString()
+          })
+        }).then(({data}) => {
+          if (data && data.code === 0) {
+            this.cols = this.colDatas
+            this.statuteTableDataList = data.page.list
+            this.totalPage = data.page.total
+            this.pageIndex = data.page.pageNum
+            this.pageSize = data.page.pageSize            
+          } else {
+            this.$message.error(data.msg)
+          }
+          this.statuteTableDataListLoading = false
+        })
+      })      
+    },
+    // 右侧表格  多选
+    statuteSelectionChangeHandle (val) {
+      this.statuteDataListSelections = val
+    },
+    // 右侧表格 每页数
+    sizeChangeHandle (val) {
+      this.pageSize = val
+      this.pageIndex = 1
+      this.$options.methods.getStatuteTableDataList.bind(this)()
+    },
+    // 右侧表格 当前页
+    currentChangeHandle (val) {
+      this.pageIndex = val
+      this.$options.methods.getStatuteTableDataList.bind(this)()
+    },
+    // 新增修改 遥信 提交
+    yxDataFormSubmit (yxDataFormSet) {
+      let equipArr = this.statuteDataListSelections.map(item => {
+          return item.yxId
+        })
+      this.submitAll(yxDataFormSet, `/admin/tyxrule/${this.yxDialogTitle == undefined ? 'save' : 'update'}`, {
+        list: {       
+          yxIds: this.yxDialogTitle == undefined ? null : equipArr,
+          commId: this.clickedCell.toString(),
+          equipId: this.yxDataFormSet.equipId,
+          pointId: this.yxDataFormSet.pointId,
+          yxAddress: this.yxDataFormSet.yxAddress,
+          isSave: this.yxDataFormSet.isSave,
+          stepSize: this.yxDataFormSet.stepSize
+        }
+      }, '/admin/tyxrule/checkAddress', this.yxDataFormSet.yxAddress, this.yxDialogTitle)
+    },
+    // 新增修改 遥测 提交
+    ycDataFormSubmit (ycDataFormSet) {
+      // console.log(this.ycDataFormSet)
+      // console.log(this.ycDialogTitle)
+      // console.log(this.statuteDataListSelections)
+      let equipArr = this.statuteDataListSelections.map(item => {
+          return item.ycId
+        })
+      this.submitAll(ycDataFormSet, `/admin/tycrule/${this.ycDialogTitle == undefined ? 'save' : 'update'}`, {
+        list: {        
+          ycIds: this.ycDialogTitle == undefined ? null : equipArr,
+          commId: this.clickedCell.toString(),
+          equipId: this.ycDataFormSet.equipId,
+          pointId: this.ycDataFormSet.pointId,
+          ycAddress: this.ycDataFormSet.ycAddress,
+          basicValue: (this.ycDataFormSet.basicValue == null || '') ? 0 : this.ycDataFormSet.basicValue,
+          coeffcient1: (this.ycDataFormSet.coeffcient1 == null || '') ? 1.0000 : new Number(this.ycDataFormSet.coeffcient1).toFixed(4),
+          coeffcient2: (this.ycDataFormSet.coeffcient2 == null || '') ? 1.0000 : new Number(this.ycDataFormSet.coeffcient2).toFixed(4),
+          validUpLimit: (this.ycDataFormSet.validUpLimit == null || '') ? 2147483647 : this.ycDataFormSet.validUpLimit,
+          validDownLimit: (this.ycDataFormSet.validDownLimit == null || '') ? -2147483648 : this.ycDataFormSet.validDownLimit,
+          validGradient: (this.ycDataFormSet.validGradient  == null || '') ? 0 : this.ycDataFormSet.validGradient,
+          isSave: this.ycDataFormSet.isSave,
+          stepSize: this.ycDataFormSet.stepSize,
+          generalUpLimit: this.ycDataFormSet.generalUpLimit,
+          generalDownLimit: this.ycDataFormSet.generalDownLimit,
+          severityUpLimit: this.ycDataFormSet.severityUpLimit,
+          severityDownLimit: this.ycDataFormSet.severityDownLimit
+        }
+      }, '/admin/tycrule/checkAddress', this.ycDataFormSet.ycAddress, this.ycDialogTitle)
+    },
+    // 新增修改 遥控 提交
+    ykDataFormSubmit (ykDataFormSet) {
+      let equipArr = this.statuteDataListSelections.map(item => {
+          return item.ykId
+        })
+      this.submitAll(ykDataFormSet, `/admin/tykrule/${this.ykDialogTitle == undefined ? 'save' : 'update'}`, {
+        list: {       
+          ykIds: this.ykDialogTitle == undefined ? null : equipArr,
+          commId: this.clickedCell.toString(),
+          equipId: this.ykDataFormSet.equipId,
+          pointId: this.ykDataFormSet.pointId,
+          ykAddress: this.ykDataFormSet.ykAddress
+        }
+      }, '/admin/tykrule/checkAddress', this.ykDataFormSet.ykAddress, this.ykDialogTitle)
+    },
+    // 新增修改 遥调 提交
+    ytDataFormSubmit (ytDataFormSet) {
+      let equipArr = this.statuteDataListSelections.map(item => {
+          return item.ytId
+        })
+      this.submitAll(ytDataFormSet, `/admin/tytrule/${this.ytDialogTitle == undefined ? 'save' : 'update'}`, {
+        list: {
+          ytIds: this.ykDialogTitle == undefined ? null : equipArr,
+          commId: this.clickedCell.toString(),
+          equipId: this.ytDataFormSet.equipId,
+          pointId: this.ytDataFormSet.pointId,
+          ytAddress: this.ytDataFormSet.ytAddress
+        }
+      }, '/admin/tytrule/checkAddress', this.ytDataFormSet.ytAddress, this.ytDialogTitle)
+    },
+    // 新增修改 遥脉 提交
+    ymDataFormSubmit (ymDataFormSet) {
+      let equipArr = this.statuteDataListSelections.map(item => {
+          return item.ymId
+        })
+      this.submitAll(ymDataFormSet, `/admin/tymrule/${this.ymDialogTitle == undefined ? 'save' : 'update'}`, {
+        list: {
+          ymIds: this.ykDialogTitle == undefined ? null : equipArr,
+          commId: this.clickedCell.toString(),
+          equipId: this.ymDataFormSet.equipId,
+          pointId: this.ymDataFormSet.pointId,
+          ymAddress: this.ymDataFormSet.ymAddress,
+          basicValue: (this.ymDataFormSet.basicValue == null || '') ? 0 : this.ymDataFormSet.basicValue,
+          coeffcient1: (this.ymDataFormSet.coeffcient1 == null || '') ? 1.0000 : new Number(this.ymDataFormSet.coeffcient1).toFixed(4),
+          coeffcient2: (this.ymDataFormSet.coeffcient2 == null || '') ? 1.0000 : new Number(this.ymDataFormSet.coeffcient2).toFixed(4),
+          validUpLimit: (this.ymDataFormSet.validUpLimit == null || '') ? 2147483647 : this.ymDataFormSet.validUpLimit,
+          validDownLimit: (this.ymDataFormSet.validDownLimit == null || '') ? -2147483648 : this.ymDataFormSet.validDownLimit,
+          validGradient: (this.ymDataFormSet.validGradient == null || '') ? 0 : this.ymDataFormSet.validGradient,
+          isSave: this.ymDataFormSet.isSave,
+          stepSize: this.ymDataFormSet.stepSize
+        }
+      }, '/admin/tymrule/checkAddress', this.ymDataFormSet.ymAddress, this.ymDialogTitle)
+    },
+    // 表单提交方法 （表单名称， 表单提交url，表单数据 ，点号去重地址， 点号输入值）
+    submitAll (dataFormName, url, dataFormValue, checkUrl, yAddress, dialogTitle) {
+      // console.log(dataFormName, url, dataFormValue, checkUrl, yAddress, dialogTitle)
+      // console.log(dialogTitle)
+      if(dialogTitle == undefined) {
+        this.$http({
+          url: this.$http.adornUrl(checkUrl),
+          method: 'get',
+          params: this.$http.adornParams({
+            checkAddress: yAddress
+          })
+        }).then(({data}) => {
+          if (data && data.code === 0 && data.data.status === false) {
+            this.$message({
+              message: '点号已存在，请重新输入',
+              type: 'error',
+              duration: 1500,
+              onClose: () => {                      
+              }
+            }) 
+          }else {
+            let p = new Promise((resolve,reject) => {
+              this.$refs[dataFormName].validate((valid) => {
+                if (valid) {
+                  this.$confirm(`确定提交?`, '提示', {
+                    confirmButtonText: '确定',
+                    cancelButtonText: '取消',
+                    type: 'warning'
+                  }).then(() => {
+                    this.$http({
+                      url: this.$http.adornUrl(url),
+                      method: 'post',
+                      data: this.$http.adornData(dataFormValue,false)
+                    }).then(({data}) => {
+                      resolve(data)
+                      if(data && data.code === 0) {
+                        this.ycAddOrUpdateVisible = false
+                        this.yxAddOrUpdateVisible = false
+                        this.ytAddOrUpdateVisible = false
+                        this.ykAddOrUpdateVisible = false
+                        this.ymAddOrUpdateVisible = false
+                        this.$options.methods.getStatuteTableDataList.bind(this)()
+                        this.$message({
+                          message: '操作成功',
+                          type: 'success',
+                          duration: 1500,
+                          onClose: () => {                      
+                          }
+                        })                       
+                      }else {
+                        this.$message.error(data.msg)
+                      }
+                    })
+                  })
+                } else {
+                  console.log('error submit!!');
+                  return false;
+                }
+              })
+            })
+            return p  
+          }
+        })
+      } else {
+        let p = new Promise((resolve,reject) => {
+          this.$refs[dataFormName].validate((valid) => {
+            if (valid) {
+              this.$confirm(`确定提交?`, '提示', {
+                confirmButtonText: '确定',
+                cancelButtonText: '取消',
+                type: 'warning'
+              }).then(() => {
+                this.$http({
+                  url: this.$http.adornUrl(url),
+                  method: 'post',
+                  data: this.$http.adornData(dataFormValue,false)
+                }).then(({data}) => {
+                  resolve(data)
+                  if(data && data.code === 0) {
+                    this.ycAddOrUpdateVisible = false
+                    this.yxAddOrUpdateVisible = false
+                    this.ytAddOrUpdateVisible = false
+                    this.ykAddOrUpdateVisible = false
+                    this.ymAddOrUpdateVisible = false
+                    this.$options.methods.getStatuteTableDataList.bind(this)()
+                    this.$message({
+                      message: '操作成功',
+                      type: 'success',
+                      duration: 1500,
+                      onClose: () => {                      
+                      }
+                    })                       
+                  }else {
+                    this.$message.error(data.msg)
+                  }
+                })
+              })
+            } else {
+              console.log('error submit!!');
+              return false;
+            }
+          })
+        })
+        return p 
+      }         
+    }
+  }
+}
+</script>
+<style scoped>
+  .statuteManagement {
+    display: flex;
+  }
+  /* 左侧部分样式开始 */
+  .statuteManagement-left {
+    width: 10%;
+    min-width: 300px;
+    height: 100%;
+    border-right: 1px solid #ccc;
+    display: flex;
+    flex-direction: column
+  }
+  /* 左侧上方选项 */
+  .statuteManagement-left-top {
+    height: 20%;
+    min-height: 125px;
+    border-bottom: 1px solid #ccc;
+  }
+  .statute-produce {
+    display: flex
+  }
+  .statute-produce-left, .statute-produce-right {
+    margin-right: 20px
+  }
+  .statute-produce-left .produce-right-item {
+  }
+  /* 左侧下方表格 */
+  .statuteManagement-left-bottom {
+    overflow: auto
+  }
+  .statuteManagement >>> .el-table .click-cell {
+    background-color: #f3f8fb;
+    border-bottom-color: #c0dff4;
+    color: #43ade9
+  }
+  .statuteManagement >>> .el-table .cell {
+    cursor: pointer
+  }
+
+  /* 左侧部分样式结束 */
+
+
+
+  /* 右侧部分样式开始 */
+  .statuteManagement-right {
+    flex: 1;
+    margin-left: 20px;
+    overflow: hidden;
+  }
+  .set-device-form {
+    display: flex;
+    flex-direction: row;
+    overflow: auto
+  }
+  .set-device-form-item {
+    display: flex;
+  }
+  .set-device-form-item >>> .el-form-item__label {
+    min-width: 180px;
+    width: 40%;
+  }
+  .set-device-form-item >>> .el-form-item__content {
+    width: 35%;
+    min-width: 130px;
+    display: flex;
+    flex-direction: row;
+    align-items: center
+  }
+  .set-device-form-item >>> .el-form-item__content .el-select, .set-device-form-item >>> .el-form-item__content > .el-input {
+    width: 80%;
+  }
+  .set-device-form-item >>> .el-input, .set-device-form-item >>> .el-input-number {
+    /* width: 40%;
+    max-width: 220px; */
+  }
+  .set-device-form-item >>> .el-input-number .el-input {
+    width: 100%;
+  }
+  .statuteManagement-right >>> .el-tabs__header {
+    margin: 0
+  }
+  .statuteManagement-right >>> .el-tabs__item.is-active {
+    background: #edeef0;
+    border-bottom-color: #edeef0;
+    border-top: 2px solid #28a3ff !important;
+    color: #000;
+    font-weight: 700
+  }
+  .statuteManagement-right >>> .el-tabs--card>.el-tabs__header .el-tabs__nav {
+    border: none
+  }
+  .statuteManagement-right >>> .el-tabs--card>.el-tabs__header .el-tabs__item {
+    border-top: 1px solid #ccc;
+    border-radius: 5px 5px 0 0
+  }
+  .statuteManagement-right >>> .el-tabs__nav div:nth-child(5) {
+    border-right: 1px solid #ccc;
+  }
+  .statuteManagement-right >>> .el-tabs__nav div:nth-child(1) {
+    border-left: 1px solid #ccc;
+  }
+  .statuteManagement-right >>> .el-pager li.active {
+    background-color: #33a7fe;
+    color: #fff;
+    font-size: 16px;
+    border-radius: 100%
+  }
+  .statuteManagement-right >>> .el-pager li {
+    min-width: 30px;
+    height: 25px;
+    line-height: 25px
+  }
+   /* 右侧部分样式结束 */
+</style>
+<style lang="scss" scoped>
+@import "../../../../assets/scss/_dialog.scss"
+</style>

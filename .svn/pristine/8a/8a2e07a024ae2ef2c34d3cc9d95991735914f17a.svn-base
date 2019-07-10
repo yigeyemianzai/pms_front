@@ -1,0 +1,791 @@
+<template>
+  <div id="dictionary" class="dictionary">
+    <el-form :inline="true" class="device-form">
+      <!-- <el-form-item class="device-form-item" >
+        <el-cascader
+          :options="organizationOptions"
+          v-model="secrchDictionaryForm.orgSelectedOptions"
+          placeholder="选择组织机构"
+        ></el-cascader>
+      </el-form-item> -->
+      <el-form-item class="device-form-item">
+        <!-- <el-button type="success" @click="getdictionaryList()">查询</el-button> -->
+        <el-button v-if="isAuth(OPTAUTH_ADD)" type="primary" @click="editDictionary()">新增</el-button>
+        <el-button v-if="isAuth(OPTAUTH_DELETE)" type="danger" @click="deleteDictionary()" :disabled="dataListSelections.length <= 0">批量删除</el-button>
+      </el-form-item>
+    </el-form>
+    <!-- <el-table
+      :header-cell-style="{background:'#edeef0',color:'#000',fontSize:'16px',height:'40px'}"
+      :row-style="{height:'36px'}"
+      :max-height="dictionaryTableHeight"
+      :data="dataSource"
+      border
+      v-loading="dataListLoading"
+      @selection-change="selectionChangeHandle"
+      style="width: 100%;">
+      <el-table-column
+        type="selection"
+        header-align="center"
+        align="center"
+        width="50">       
+      </el-table-column>
+      <el-table-column
+        type="index"
+        header-align="center"
+        align="center"
+        width="50">
+      </el-table-column>
+      <el-table-column
+        prop="codeId"
+        header-align="center"
+        align="center"
+        :show-overflow-tooltip="true"
+        width="100"
+        label="字典标识">
+      </el-table-column>
+      <el-table-column
+        prop="codeName"
+        header-align="center"
+        align="center"
+        width="100"
+        label="字典名称">
+      </el-table-column>
+      <table-tree-column
+        ref='child'
+        prop="codeName"
+        treeKey="codeId"
+        header-align="center"
+        label="字典名称"
+        lazy
+        @expanded="expandedHandle">
+      </table-tree-column>
+      <el-table-column
+        prop="codeType"
+        header-align="center"
+        align="center"
+        label="字典类型">
+      </el-table-column>
+      <el-table-column
+        prop="typeName"
+        header-align="center"
+        align="center"
+        label="类型名称">
+      </el-table-column>
+      <el-table-column
+        prop="code"
+        header-align="center"
+        align="center"
+        label="字典编号">
+      </el-table-column>
+      <el-table-column
+        prop="subCodeType"
+        header-align="center"
+        align="center"
+        label="子类型">
+      </el-table-column>
+      <el-table-column
+        prop="parentId"
+        header-align="center"
+        align="center"
+        label="父类型">
+      </el-table-column>
+      <el-table-column
+        prop="remark"
+        header-align="center"
+        align="center"
+        label="描述">
+      </el-table-column>
+      <el-table-column
+        fixed="right"
+        header-align="center"
+        align="center"
+        width="150"
+        label="操作">
+        <template slot-scope="scope">
+          <el-button v-if="isAuth(OPTAUTH_UPDATE)" type="text" size="small" @click="editDictionary(scope.row)"><i class="el-icon-edit-outline"></i></el-button>
+          <el-button v-if="isAuth(OPTAUTH_DELETE)" type="text" size="small" @click="deleteDictionary(scope.row)"><i class="el-icon-delete"></i></el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+    <el-pagination
+      @size-change="sizeChangeHandle"
+      @current-change="currentChangeHandle"
+      :current-page="pageIndex"
+      :page-sizes="[10, 20, 50, 100]"
+      :page-size="pageSize"
+      :total="totalPage"
+      layout="total, sizes, prev, pager, next, jumper">
+    </el-pagination> -->
+    <!-- 弹窗, 新增 / 修改 -->
+    <voTable @search="search" :table="tableAll" :pageParam="getTable" 
+       @action="action" @deleteAll="deleteAll"></voTable>
+    <el-dialog
+      :title="dialogTitle == undefined ? '新  增' : '修  改'"
+      :close-on-click-modal="false"
+      :visible.sync="addOrUpdateVisible"
+      center="center">
+      <el-form :model="setDictionaryDataForm" label-width="80px" class="set-device-form" :rules="dictionaryDataFormSetRule" ref="setDictionaryDataForm">
+        <el-form-item class="set-device-form-item" label="字典类型" prop="codetype">
+          <el-input v-model="setDictionaryDataForm.codetype" type="number" oninput="if(value.length>4)value=value.slice(0,4)"></el-input>
+        </el-form-item>
+        <el-form-item class="set-device-form-item" label="类型名称" prop="typeName">
+          <el-input v-model="setDictionaryDataForm.typeName"></el-input>
+        </el-form-item>
+        <el-form-item class="set-device-form-item" label="字典名称" prop="codeName">
+          <el-input v-model="setDictionaryDataForm.codeName"></el-input>
+        </el-form-item>
+        <el-form-item class="set-device-form-item" label="字典编号" prop="code">
+          <el-input v-model="setDictionaryDataForm.code" type="number"></el-input>
+        </el-form-item>
+        <el-form-item class="set-device-form-item" label="子类型" prop="subCodeType">
+          <el-select v-model="setDictionaryDataForm.subCodeType" @click.native="getSubCodeTypeOptions()">
+            <el-option
+              v-for="item in subCodeTypeOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value">
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item class="set-device-form-item" label="父类型" prop="parentId">
+          <el-input v-model="setDictionaryDataForm.parentId"></el-input>
+        </el-form-item>
+        <el-form-item class="set-device-form-item" label="序号" prop="sortNo">
+          <el-input v-model="setDictionaryDataForm.sortNo"></el-input>
+        </el-form-item>
+        <el-form-item class="set-device-form-item" label="描述" prop="descirb">
+          <el-input
+            type="textarea"
+            :rows="3"
+            placeholder="请输入内容"
+            v-model="setDictionaryDataForm.descirb">
+          </el-input>
+        </el-form-item>
+      </el-form>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="addOrUpdateVisible = false">取消</el-button>
+        <el-button type="primary" @click="dictionaryDataFormSubmit(setDictionaryDataForm)">确定</el-button>
+      </span>
+    </el-dialog>
+  </div>
+</template>
+<script>
+import Vue from 'vue'
+import { isPositiveNumber } from '@/utils/validate'
+import TableTreeColumn from '@/components/table-tree-column'
+import MSDataTransfer from '@/utils/dataTranslate.js'
+import isArray from 'lodash/isArray'
+import voTable from '@/components/table/table'
+export default {
+  data () {
+    var validatePositiveNumber = (rule, value, callback) => {
+      // console.log(value)
+      if (!isPositiveNumber(value)) {
+        callback(new Error('请输入正整数'))
+      } else {
+        this.setDictionaryDataForm.subCodeType = ''
+        callback()
+      }
+    }
+    var validateCode = (rule, value, callback) => {
+      console.log(this.saveCode)
+      if (value && this.setDictionaryDataForm.codetype !== '' && value != this.saveCode) {
+        this.$http({
+          url: this.$http.adornUrl('/admin/codedetail/code'),
+          method: 'post',
+          data: this.$http.adornParams({
+            code: value,
+            codeType: this.setDictionaryDataForm.codetype.toString()
+          })
+        }).then(({data}) => {
+          if (data && data.code === 0 && data.leaf === false) {
+            callback(new Error('字典编号已存在'))
+          }else {
+            callback()
+          }
+        })
+      } else {
+        callback()
+      }
+    }
+    var validateParentId = (rule, value, callback) => {
+      if (value && this.setDictionaryDataForm.parentId !== '') {
+        this.$http({
+          url: this.$http.adornUrl('/admin/codedetail/parentId'),
+          method: 'post',
+          data: this.$http.adornParams({
+            parentId: this.setDictionaryDataForm.parentId.toString()
+          })
+        }).then(({data}) => {
+          if (data && data.code === 0 && data.leaf === false) {
+            callback(new Error('父类型不存在'))
+          }else {
+            callback()
+          }
+        })
+      } else {
+        callback()
+      }
+    }
+    var validateTypeName = (rule, value, callback) => {
+      console.log(this.saveTypeName)
+      if (value && this.setDictionaryDataForm.codetype !== '' && value != this.saveTypeName) {
+        this.$http({
+          url: this.$http.adornUrl('/admin/codedetail/typeName'),
+          method: 'post',
+          data: this.$http.adornParams({
+            typeName: this.setDictionaryDataForm.typeName,
+            codeType: this.setDictionaryDataForm.codetype.toString()
+          })
+        }).then(({data}) => {
+          if (data && data.code === 0 && data.leaf === false) {
+            callback(new Error('类型名称不正确'))
+          }else {
+            callback()
+          }
+        })
+      } else {
+        callback()
+      }
+    }
+    return {
+      tableAll:{
+        defaultSort:{prop:'createdTime',order:'descending'},
+        status:{disabled: false, status: '状态', isShow: false},
+        tableLabel:[         
+          {prop:'codeId',title:'字典标识'},
+          {prop:'codeName',title:'字典名称'},
+          {prop:'codeType',title:'字典类型'},
+          {prop:'typeName',title:'类型名称'},
+          {prop:'code',title:'字典编号'},
+          {prop:'subCodeType',title:'子类型'},
+          {prop:'parentId',title:'父类型'},
+          {prop:'remark',title:'描述',fixed: 'right'},
+          /* {prop:'createdTime',title:'CREATED_TIME',width:'200',sort:true,formatter:(row)=>{
+              return moment(row.createdTime).format('YYYY-MM-DD HH:mm:ss')
+            }} */
+        ],
+        tableData: [],
+        tableOption:{
+          isShow: true,
+          action: '操作',
+          width:'200',
+          buttons:[
+            {label:'修改',methods:'detail',no:'1040:4'},
+            {label:'删除',methods:'delete',no:'1040:8'}
+          ]
+        },
+        total: 0,
+        pageIndex: 1,
+        load: false
+      },
+      /*你的请求参数*/
+      getTable:{
+        pageSize: 10,
+        pageNo: 1,
+        username: '',
+        roleId: null,
+        orderBy:''
+      },
+      saveTypeName: null, // 保存修改页面 类型名称
+      saveCode: null,  // 保存修改页面 字典编号
+      childrenList: [],
+      // 表格高度
+      dictionaryTableHeight: '',
+      // 子类型下拉框
+      subCodeTypeOptions: [],
+      // 增加、修改页面表单
+      setDictionaryDataForm: {
+        codetype: '1000',
+        codeName: null,
+        typeName: null,
+        code: null,
+        subCodeType: null,
+        parentId: null,
+        sortNo: null,
+        descirb: null
+      },
+      dictionaryDataFormSetRule: {
+        codetype: [
+          { required: true, message: '不能为空', trigger: 'blur' },
+          { validator: validatePositiveNumber, trigger: 'change' }
+        ],
+        code: [
+          { required: true, message: '不能为空', trigger: 'blur' },
+          { validator: validateCode, trigger: 'blur' }
+        ],
+        parentId: [
+          { required: false, trigger: 'blur' },
+          { validator: validateParentId, trigger: 'blur' }
+        ],
+        typeName: [
+          { required: false, trigger: 'blur' },
+          { validator: validateTypeName, trigger: 'blur' }
+        ],
+        codeName: [],
+        subCodeType: [],
+        sortNo: [],
+        descirb: []
+      },
+      // 搜索表单 分别为已选组织机构 站点名称
+      /* secrchDictionaryForm: {
+        orgSelectedOptions: JSON.parse(window.localStorage.getItem('orgId')),
+      }, */
+      // 区分是新增还是修改页面
+      dialogTitle: '',
+      // 组织机构列表
+      organizationOptions: [],
+      // 站点名称列表
+      stationNameOptions: [],
+      stationNameLoading: true,
+      // 当前页
+      pageIndex: 1,
+      // 分页大小
+      pageSize: 10,
+      // 总记录数
+      totalPage: 2,
+      // 多选数组
+      dataListSelections: [],
+      addOrUpdateVisible: false,
+      dataSource: [],
+      dataListLoading: false,
+      selectIndex: 0
+    }
+  },
+  created () {    
+    this.dictionaryTableHeight = window.innerHeight-320
+  },  
+  components: {
+    TableTreeColumn,
+    voTable
+  },
+  mounted () {
+    this.getOrgLists()
+    this.getdictionaryList()
+    // document.getElementById('dictionary').style.height = (window.innerHeight-170)+'px'
+    window.onresize = function () {
+      if(document.getElementById('dictionary')){
+        // document.getElementById('dictionary').style.height = (window.innerHeight - 170) + 'px'
+        this.dictionaryTableHeight = window.innerHeight-320
+      }
+    }
+  },
+  watch: {
+    // 'setDictionaryDataForm.codetype': function (val) {
+    //   if(this.dialogTitle == '') {
+    //     // this.setDictionaryDataForm.subCodeType = ''
+    //   }     
+    // }
+  },
+  methods: {
+    deleteAll(obj) {
+      console.log(obj)
+      this.dataListSelections = obj
+    },
+    action(obj){
+      console.log(obj)
+      if(obj.methods === 'detail'){
+        // console.log('这里添加详情函数')
+        this.editDictionary(obj.row)
+      }
+      if(obj.methods === 'delete'){
+        // console.log('这里添加删除函数')
+        this.deleteDictionary(obj.row)
+      }
+    },
+    search(obj){
+      // console.log(obj)
+      this.getTable.pageSize = obj.pageSize;
+      this.getTable.pageNo = obj.pageNo;
+      this.getTable.orderBy = obj.orderBy;
+      this.tableAll.load = true
+      this.$http({
+        url: this.$http.adornUrl('/admin/codedetail/list'),
+        method: 'post',
+        data: this.$http.adornParams({
+          'page': obj.pageNo.toString(),
+          'limit': obj.pageSize.toString()
+        })
+      }).then(({data}) => {
+        if (data && data.code === 0) {
+          /* this.dataSource = MSDataTransfer.treeToArray(data.page.list, null, null, true) */
+          this.tableAll.tableData = data.page.list
+          this.tableAll.total = data.page.totalCount
+          /* this.pageIndex = data.page.currPage
+          this.pageSize = data.page.pageSize */
+        } else {
+          this.tableAll.tableData = []
+          this.tableAll.total = 0
+        }
+        this.tableAll.load = false
+      })
+    },
+    // 获取子信息
+    getDetails (val) {
+      this.$http({
+        url: this.$http.adornUrl('/admin/codedetail/list/detail'),
+        method: 'post',
+        data: this.$http.adornParams({
+          codeId: val
+        })
+      }).then(({data}) => {
+        if (data && data.code === 0) {
+          this.dataSource = this.dataSource.splice(0, this.selectIndex + 1).concat(data.list).concat(this.dataSource)
+        } else {
+          this.dataSource = []
+        }
+        this.dataListLoading = false
+      })     
+    },
+    expandedHandle (index, row, expanded) {
+        this.selectIndex = index
+        if(expanded){
+          this.getDetails(row.codeId)
+        }else{
+          this.dataSource = this.$refs.child.removeChildNode(this.dataSource,row.codeId)
+          // this.dataSource = this.removeChildNode(this.dataSource,row.codeId)
+        }
+      },
+    // 移除子节点
+    /* removeChildNode (data, parentId) {
+      var parentIds = isArray(parentId) ? parentId : [parentId]
+      if (parentId.length <= 0) {
+        return data
+      }
+      var ids = []
+      for (var i = 0; i < data.length; i++) {
+        if (parentIds.indexOf(data[i].parentId) !== -1 && parentIds.indexOf(data[i].resId) === -1) {
+          ids.push(data.splice(i, 1)[0].resId)
+          i--
+        }
+      }
+      return this.removeChildNode(data, ids)
+    }, */
+    // 提交修改配置页面信息
+    dictionaryDataFormSubmit (setDictionaryDataForm) {
+      // console.log(setDictionaryDataForm)
+      this.$refs['setDictionaryDataForm'].validate((valid) => {
+        if (valid) {
+          this.$confirm(`确定提交?`, '提示', {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning'
+          }).then(() => {
+            this.$http({
+              url: this.$http.adornUrl(`/admin/codedetail/${this.dialogTitle == undefined ? 'save' : 'update'}`),
+              method: 'post',
+              data: this.$http.adornData({
+                codeId: this.dialogTitle == undefined ? null : this.dialogTitle,
+                codeType: setDictionaryDataForm.codetype.toString(),
+                typeName: setDictionaryDataForm.typeName,
+                code: setDictionaryDataForm.code,
+                codeName: setDictionaryDataForm.codeName,
+                subCodeType: setDictionaryDataForm.subCodeType,
+                parentId: setDictionaryDataForm.parentId,
+                sortNo: setDictionaryDataForm.sortNo,
+                remark: setDictionaryDataForm.descirb
+              })
+            }).then(({data}) => {
+              if(data && data.code === 0) {
+                this.addOrUpdateVisible = false
+                    if(this.dialogTitle == undefined) {
+                      this.tableAll.tableData.unshift(data.entity)
+                    } else {
+                      for(let i=0;i<this.tableAll.tableData.length;i++) {
+                        if(this.tableAll.tableData[i].codeId == data.entity.codeId) {
+                          this.tableAll.tableData[i].code = data.entity.code
+                          this.tableAll.tableData[i].codeId = data.entity.codeId
+                          this.tableAll.tableData[i].codeName = data.entity.codeName
+                          this.tableAll.tableData[i].codeType = data.entity.codeType
+                          this.tableAll.tableData[i].leaf = data.entity.leaf
+                          this.tableAll.tableData[i].parentId = data.entity.parentId
+                          this.tableAll.tableData[i].remark = data.entity.remark
+                          this.tableAll.tableData[i].sortNo = data.entity.sortNo
+                          this.tableAll.tableData[i].subCodeType = data.entity.subCodeType
+                          this.tableAll.tableData[i].typeName = data.entity.typeName
+                        }
+                      }
+                    }
+                this.$message({
+                  message: '操作成功',
+                  type: 'success',
+                  duration: 1500,
+                  onClose: () => {
+                    
+                    // this.$refs['setDictionaryDataForm'].resetFields()
+                    // this.$options.methods.getdictionaryList.bind(this)()
+                  }
+                })                
+              } else {
+                this.$message.error(data.msg)
+              }
+            })           
+          })
+        } else {
+          console.log('error submit!!')
+          return false;
+        }
+      })
+    },
+    // 删除/批量删除
+    deleteDictionary (row) {
+      let cid
+      if(row) {
+        cid = row.codeId
+      }
+      var codeId = cid ? [cid] : this.dataListSelections.map(item => {
+        return item.codeId
+      })
+      this.$confirm('确定删除操作?', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(() => {
+        this.$http({
+          url: this.$http.adornUrl('/admin/codedetail/delete'),
+          method: 'post',
+          data: this.$http.adornData(codeId, false)
+        }).then(({data}) => {
+          if (data && data.code === 0) {
+                this.getdictionaryList()
+            this.$message({
+              message: '操作成功',
+              type: 'success',
+              duration: 1500,
+              onClose: () => {
+              }
+            })
+          } else {
+            this.$message.error(data.msg)
+          }
+        })
+      }).catch(() => {})
+    },
+    // 新增 / 修改
+    editDictionary (row) {
+      // console.log(row)
+      this.addOrUpdateVisible = true      
+      this.$nextTick(function () {
+        this.$refs['setDictionaryDataForm'].resetFields()
+      })
+      if(row) {
+        // console.log(row)
+        this.$http({
+          url: this.$http.adornUrl('/admin/codedetail/subCodeType'),
+          method: 'post',
+          data: this.$http.adornParams({
+            codeType: this.setDictionaryDataForm.codetype.toString()
+          })
+        }).then(({data}) => {
+          if (data && data.code === 0) {
+            this.subCodeTypeOptions = data.list
+            // this.setDictionaryDataForm.subCodeType = (row.subCodeType != null ? row.subCodeType.toString() : null )
+          }else {
+            this.subCodeTypeOptions = []
+          }
+        }).then(()=>{
+          this.$http({
+            url: this.$http.adornUrl(`/admin/codedetail/info/${row.codeId}`),
+            method: 'get',
+            params: this.$http.adornParams()
+          }).then(({
+            data
+          }) => {
+            if (data && data.code === 0) {
+              console.log(this.subCodeTypeOptions)
+              this.dialogTitle = data.tCodeDetail.codeId
+              this.setDictionaryDataForm.codetype = data.tCodeDetail.codeType
+              this.setDictionaryDataForm.typeName = data.tCodeDetail.typeName
+              this.setDictionaryDataForm.parentId = data.tCodeDetail.parentName
+              this.setDictionaryDataForm.descirb = data.tCodeDetail.remark
+              this.setDictionaryDataForm.codeName = data.tCodeDetail.codeName
+              this.setDictionaryDataForm.sortNo = data.tCodeDetail.sortNo
+              this.setDictionaryDataForm.code = data.tCodeDetail.code
+              this.setDictionaryDataForm.subCodeType = data.tCodeDetail.subCodeType.toString()
+              this.saveTypeName = data.tCodeDetail.typeName
+              this.saveCode = data.tCodeDetail.code
+            }
+          })
+        })
+        
+        /* this.$nextTick(function () {
+          this.dialogTitle = data.tCodeDetail.codeId
+          this.setDictionaryDataForm.codetype = row.codeType
+          this.setDictionaryDataForm.typeName = row.typeName
+          this.setDictionaryDataForm.parentId = row.parentId
+          this.setDictionaryDataForm.descirb = row.remark
+          this.setDictionaryDataForm.codeName = row.codeName
+          this.setDictionaryDataForm.sortNo = row.sortNo
+          this.setDictionaryDataForm.code = row.code
+          this.saveTypeName = row.typeName
+          this.saveCode = row.code
+        }) */
+      }else {
+        this.dialogTitle = row
+        this.saveTypeName = null
+        this.saveCode = null
+      }
+    },
+    // 获取组织机构数据
+    getOrgLists () {
+      this.$http({
+        url: this.$http.adornUrl('/admin/tstation/org'),
+        method: 'post',
+        data: this.$http.adornParams({})
+      }).then(({data}) => {
+        if (data && data.code === 0) {
+          this.organizationOptions = data.list       
+        }
+      })      
+    },
+    // 获取数据列表
+    getdictionaryList () {
+      this.tableAll.load = true
+      this.$http({
+        url: this.$http.adornUrl('/admin/codedetail/list'),
+        method: 'post',
+        data: this.$http.adornParams({
+          'page': this.pageIndex.toString(),
+          'limit': this.pageSize.toString()
+        })
+      }).then(({data}) => {
+        if (data && data.code === 0) {
+          /* this.dataSource = MSDataTransfer.treeToArray(data.page.list, null, null, true) */
+          this.tableAll.tableData = data.page.list
+          this.tableAll.total = data.page.totalCount
+        } else {
+          this.tableAll.tableData = []
+          this.tableAll.total = 0
+        }
+        this.tableAll.load = false
+      })
+    },
+    // 每页数
+    sizeChangeHandle (val) {
+      this.pageSize = val
+      this.pageIndex = 1
+      this.$options.methods.getdictionaryList.bind(this)()
+    },
+    // 当前页
+    currentChangeHandle (val) {
+      this.pageIndex = val
+      this.$options.methods.getdictionaryList.bind(this)()
+    },
+    // 多选
+    selectionChangeHandle (val) {
+      this.dataListSelections = val
+    },
+    getSubCodeTypeOptions () {
+      this.$http({
+        url: this.$http.adornUrl('/admin/codedetail/subCodeType'),
+        method: 'post',
+        data: this.$http.adornParams({
+          codeType: this.setDictionaryDataForm.codetype.toString()
+        })
+      }).then(({data}) => {
+        if (data && data.code === 0) {
+          this.subCodeTypeOptions = data.list       
+        }else {
+          this.subCodeTypeOptions = []
+        }
+      }) 
+    },
+    /* tableRowClassName({row, rowIndex}) {
+      if (rowIndex%2 === 0) {
+        return 'warning-row';
+      } else if (rowIndex%2 === 1) {
+        return 'success-row';
+      }
+      return '';
+    }, */
+  }
+}
+</script>
+<style scoped>
+/* 搜索条件栏样式开始 */
+.device-form {
+ /*  background-color: #eef4fa; */
+  border-radius: 5px 5px 0 0 ;
+  /* margin-bottom: 10px; */
+  height: 80px;
+  width: 100%;
+  padding: 0 10px 0 10px;
+  display: flex;
+  align-items: center;
+  text-align: justify
+}
+.device-form-item {
+  margin-bottom: 0;
+  /* flex: 1 */
+}
+.device-form-item a, .set-device-form-item a {
+  font-weight: 600;
+  font-size: 15px
+}
+/* 搜索条件栏样式结束 */
+
+/* 表格样式开始 */
+/* .dictionary >>> .el-table .warning-row {
+  background: #f6f9fc;
+}
+
+.dictionary >>> .el-table .success-row {
+  background: #fafcfd;
+} */
+/* 表格样式结束 */
+/* 增加修改配置页面样式开始 */
+.set-device-form {
+  background-color: #eef4fa;
+  border-radius: 5px;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 20px 0 0 0;
+  /* height: 100%;
+  overflow-y: auto */
+}
+.set-device-form-item >>> .el-form-item__content {
+  width: 50%;
+  display: flex;
+  flex-direction: row;
+}
+.set-device-form-item >>> .el-form-item__label {
+  min-width: 180px
+}
+/* .set-device-form-item a {
+  flex: 1;
+  min-width: 160px;
+  text-decoration: none
+} */
+.set-device-form-item >>> .el-select, .set-device-form-item >>> .el-cascader, .set-device-form-item >>> .el-input, .set-device-form-item >>> .el-input-number {
+  flex: 2
+}
+
+.set-floortype-form {
+  display: flex;
+  flex-direction: column;
+  padding: 20px 0 0 0;
+  background-color: #DCDFE6
+}
+.set-floortype-form-item >>> .el-form-item__content{
+  width: 50%;
+  display: flex;
+  flex-direction: row;
+}
+.set-floortype-form-item >>> .el-form-item__label {
+  min-width: 150px
+}
+/* .set-floortype-form-item a {
+  flex: 1;
+  min-width: 150px;
+  text-decoration: none;
+  margin-bottom: 1%;
+  font-weight: 700
+} */
+.set-floortype-form-item >>> .el-select,  .set-floortype-form-item >>> .el-input{
+  flex: 3;
+  margin-bottom: 1%
+}
+/* 增加修改配置页面样式结束 */
+
+</style>

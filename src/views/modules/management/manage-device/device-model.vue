@@ -1,0 +1,1136 @@
+<template>
+  <div class="device_model">
+    <el-form :inline="true" :model="dataForm" @keyup.enter.native="getDataList()" class="device-form">
+        <el-form-item>
+            <el-input v-model="dataForm.searchCon" placeholder="输入搜索型号名称" clearable></el-input>
+          </el-form-item>
+        <el-form-item>
+      <el-cascader :options="sysOptons" v-model="selectSys" @change="changeSysHandle" change-on-select placeholder="选择系统" clearable>
+      </el-cascader>
+      </el-form-item>
+      
+      <el-form-item>
+          <el-select v-model="conFactoryId" placeholder="请选择设备厂商" clearable>
+              <el-option v-for="item in searchFactoryOptions" :key="item.value" :label="item.label" :value="item.value">
+              </el-option>
+            </el-select>
+        </el-form-item>
+      <el-form-item>
+        <el-button @click="getDataList('params')" type="success">查询</el-button>
+        <el-button v-if="isAuth(OPTAUTH_ADD)" type="primary" @click="addOrUpdateHandle()">新增</el-button>
+        <el-button v-if="isAuth(OPTAUTH_DELETE)" type="danger" @click="deleteHandle()" :disabled="dataListSelections.length <= 0">批量删除</el-button>
+        <!-- <el-button type="danger" @click="addOrUpdateHandle()" :disabled="dataListSelections.length <= 0">批量修改</el-button> -->
+      </el-form-item>
+    </el-form>
+    <!-- <el-tree :props="props1" :load="loadNode" lazy node-key highlight-current @node-click="handleNodeClick"></el-tree> -->
+
+    <el-table :data="dataList" border v-loading="dataListLoading" @selection-change="selectionChangeHandle" max-height="680" :row-class-name="tableRowClassName"
+    >
+      <el-table-column type="selection" header-align="center" align="center" width="50">
+      </el-table-column>
+      <el-table-column type="index" header-align="center" align="center" width="80" label="序号" fixed="left">
+      </el-table-column>
+      <el-table-column prop="equipTypeCode" header-align="center" align="center" label="设备型号编号">
+      </el-table-column>
+      <el-table-column prop="equipTypeName" header-align="center" align="center" label="设备型号名称">
+      </el-table-column>
+      <el-table-column prop="systemName" header-align="center" align="center" label="系统" >
+      </el-table-column>
+      <el-table-column prop="subSystemName" header-align="center" align="center" label="子系统">
+        </el-table-column>
+      <el-table-column prop="factoryName" header-align="center" align="center" label="厂商">
+      </el-table-column>
+      <el-table-column prop="remark" header-align="center" align="center" width="180" label="备注">
+      </el-table-column>
+      <el-table-column fixed="right" header-align="center" align="center" width="200" label="操作">
+        <template slot-scope="scope">
+          <el-tooltip content="修改" placement="top" >
+            <el-button v-if="isAuth(OPTAUTH_UPDATE)" type="text" size="small" @click="addOrUpdateHandle(scope.row.equipTypeId,scope.row.systemCode)"><i class="el-icon-edit-outline istyle"></i></el-button>
+          </el-tooltip>
+          <el-tooltip content="删除" placement="top" >
+            <el-button v-if="isAuth(OPTAUTH_DELETE)" type="text" size="small" @click="deleteHandle(scope.row.equipTypeId)"><i class="el-icon-delete istyle"></i></el-button>
+          </el-tooltip>
+          <el-tooltip content="属性配置" placement="top" >
+            <el-button v-if="isAuth(OPTAUTH_UPDATE)" type="text" size="small" @click="detailHandle(scope.row.equipTypeId,'first',scope.row.equipTypeName)"><i class="el-icon-setting istyle"></i></el-button>
+          </el-tooltip>
+        </template>
+      </el-table-column>
+    </el-table>
+    <div class="clearfix"></div>
+    <el-pagination @size-change="sizeChangeHandle" @current-change="currentChangeHandle" :current-page="pageIndex"
+      :page-sizes="[10, 20, 50, 100]" :page-size="pageSize" :total="totalPage" layout="total, sizes, prev, pager, next, jumper">
+    </el-pagination>
+    <!-- 新增/修改 -->
+    <el-dialog :title="!dataForm.id ? '新增' : '修改'" :close-on-click-modal="false" ref="dataForm" :visible.sync="visible"
+      width="27.66%"
+      class="rdialog">
+      <el-form :model="dataForm" :rules="dataRule" ref="dataForm" @keyup.enter.native="dataFormSubmit()" class="rel-form">
+        <el-form-item label="设备型号编号" prop="equipTypeCode" class="rel-form-item">
+          <el-input v-model="dataForm.equipTypeCode" placeholder=""></el-input>
+        </el-form-item>
+        <el-form-item label="设备型号名称" prop="equipTypeName" class="rel-form-item">
+          <!-- <el-select v-model="dataForm.equipTypeId" placeholder="请选择">
+                      <el-option
+                        v-for="item in dataForm.EQUIP_TYPE_Options"
+                        :key="item.value"
+                        :label="item.label"
+                        :value="item.value">
+                      </el-option>
+                    </el-select> -->
+          <el-input v-model="dataForm.equipTypeName" placeholder=""></el-input>
+        </el-form-item>
+        <el-form-item label="系统" prop="selectSys2" class="rel-form-item">
+          <el-cascader :options="sysOptons" v-model="dataForm.selectSys2" @change="changeSysHandle2" change-on-select placeholder="选择系统" >
+            <!-- :disabled="!dataForm.id" -->
+            </el-cascader>
+        </el-form-item>
+        <el-form-item label="厂商" prop="factoryId" class="rel-form-item">
+          <el-select v-model="dataForm.factoryId" placeholder="请选择">
+            <el-option v-for="item in factoryOptions" :key="item.value" :label="item.label" :value="item.value">
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="备注" prop="remark" class="rel-form-item">
+          <el-input v-model="dataForm.remark" placeholder=""></el-input>
+        </el-form-item>
+
+      </el-form>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="visible = false">取消</el-button>
+        <el-button type="primary" @click="dataFormSubmit()">确定</el-button>
+      </span>
+    </el-dialog>
+    <!-- 详细列表弹框 -->
+    <el-dialog :title="'设备型号属性配置：'+dataForm.equipTypeName" :close-on-click-modal="false" ref="infoForm" :visible.sync="infoVisible" class="dialogDiv">
+      <div class="smtool">
+        <el-row>
+            <el-select v-model="searchAttr" placeholder="请选择属性类别" class="searchSelect" @change="changeSearchAttr">
+              <el-option v-for="item in attribueType_Options" :key="item.value" :label="item.label" :value="item.value">
+              </el-option>
+            </el-select>
+            
+            <el-select v-model="searchPoint" placeholder="选择点位类型" class="searchSelect" v-if="searchAttr==2">
+                <el-option v-for="item in pointTypeOptions" :key="item.value" :label="item.label" :value="item.value">
+                </el-option>
+              </el-select>
+         
+          <el-button @click="detailHandle(null,'first')" type="success" size="small">查询</el-button>
+          <el-button v-if="isAuth(OPTAUTH_ADD)" type="primary" @click="addOrUpdateDetail()" size="small">新增</el-button>
+          <el-button v-if="isAuth(OPTAUTH_DELETE)" type="danger" @click="detailDeleteHandle()" :disabled="detailListSelections.length <= 0"
+            size="small">批量删除</el-button>
+        </el-row>
+
+
+        <!-- <el-button type="danger" @click="addOrUpdateHandle()" :disabled="dataListSelections.length <= 0">批量修改</el-button> -->
+      </div>
+      <el-table :data="detailList" border v-loading="dataListLoading2" @selection-change="selectionChangeHandle2" >
+        <el-table-column type="selection" header-align="center" align="center" width="50">
+        </el-table-column>
+        <el-table-column prop="equipTypeDetailId" header-align="center" align="center" width="80" label="ID">
+        </el-table-column>
+        <!-- <el-table-column prop="equipTypeId" header-align="center" align="center" label="所属型号ID">
+        </el-table-column> -->
+        <!-- <el-table-column prop="pointType" header-align="center" align="center" label="点位类型">
+        </el-table-column> -->
+        <el-table-column prop="attribueType" header-align="center" align="center" label="属性类别" :formatter="ftAttribueType">
+        </el-table-column>
+        <el-table-column prop="attribueName" header-align="center" align="center" label="属性编码">
+        </el-table-column>
+        <el-table-column prop="attribueValue" header-align="center" align="center" label="属性值" v-if="isValue">
+        </el-table-column>
+        <el-table-column prop="sortNo" header-align="center" align="center" label="点位序号">
+        </el-table-column>
+        <el-table-column fixed="right" header-align="center" align="center" width="180" label="操作">
+          <template slot-scope="scope">
+            <el-tooltip content="修改" placement="top" >
+              <el-button v-if="isAuth(OPTAUTH_UPDATE)" type="text" size="small" @click="addOrUpdateDetail(scope.row)"><i class="el-icon-edit-outline istyle"></i></el-button>
+            </el-tooltip>
+            <el-tooltip content="删除" placement="top" >
+              <el-button v-if="isAuth(OPTAUTH_DELETE)" type="text" size="small" @click="detailDeleteHandle(scope.row.equipTypeDetailId)"><i class="el-icon-delete istyle"></i></el-button>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-pagination @size-change="sizeChangeHandle2(val,detailList)" @current-change="currentChangeHandle2"
+        :current-page="pageIndex2" :page-sizes="[10, 20, 50, 100]" :page-size="pageSize2" :total="totalPage2" layout="total, sizes, prev, pager, next, jumper">
+      </el-pagination>
+    </el-dialog>
+    <!-- 详细列表信息新增修改窗口 -->
+    <el-dialog :title="!detailForm.id ? '新增' : '修改'" :close-on-click-modal="false" :visible.sync="detailVisible" width="27.66%"
+      class="rdialog">
+      <el-form :model="detailForm"  ref="detailForm" @keyup.enter.native="detailFormSubmit()" :rules="detailRule" class="rel-form">
+        <el-form-item label="属性类别" prop="attribueType" class="rel-form-item">
+          <!-- <el-input v-model="detailForm.attribueType" placeholder=""></el-input> -->
+          <el-select v-model="detailForm.attribueType" placeholder="请选择" @change="changeAttribueType">
+            <el-option v-for="item in attribueType_Options" :key="item.value" :label="item.label" :value="item.value">
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="detailForm.attribueType ==='2'" label="点位类型" prop="pointType" class="rel-form-item">
+          <el-select v-model="detailForm.pointType" placeholder="请选择" @change="changePointType">
+            <el-option v-for="item in pointTypeOptions" :key="item.value" :label="item.label" :value="item.value">
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="detailForm.attribueType ==='2'" label="点位归类" prop="attrType" class="rel-form-item">
+            <el-select v-model="detailForm.attrType" placeholder="请选择" @change="changeAttrType">
+              <el-option v-for="item in attrTypeOptions" :key="item.value" :label="item.label" :value="item.value">
+              </el-option>
+            </el-select>
+          </el-form-item>
+        <el-form-item label="属性编码" prop="attribueCode" class="rel-form-item">
+          <!-- <el-input v-model="detailForm.attribueCode" placeholder=""></el-input> -->
+           <el-select v-model="detailForm.attribueCode" placeholder="请选择">
+            <el-option v-for="item in attribueCodeOption" :key="item.value" :label="item.label" :value="item.value">
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="属性值" prop="attribueValue" v-if="this.detailForm.attribueType==1" class="rel-form-item">
+          <el-input-number v-model="detailForm.attribueValue" :min="0"></el-input-number>
+        </el-form-item>
+        <el-form-item label="点位序号" prop="sortNo" v-if="this.detailForm.id" class="rel-form-item">
+          <el-input v-model="detailForm.sortNo" placeholder="" :disabled="true"></el-input>
+        </el-form-item>
+
+      </el-form>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="detailVisible = false">取消</el-button>
+        <el-button type="primary" @click="detailFormSubmit()">确定</el-button>
+      </span>
+    </el-dialog>
+  </div>
+</template>
+
+<script>
+  export default {
+    data() {
+      return {
+        voType: null,
+        attrTypeOptions:[],//点位归类下拉框数组
+        conFactoryId:'',
+        isValue:false,//是否显示属性值
+        searchAttr:"2",
+        searchPoint:"1",
+        currentPointType:"1",
+        attribueCodeOption:[],//属性编码下拉框数组
+        currentAttribueType : "2",  //当前属性类别 1：基础  2：实时
+        factoryOptions:[],  //厂商下拉框数据
+        searchFactoryOptions:[],
+        sysOptons: [],  
+        selectSys: [],
+        selectSys2: [],
+        
+        currentSys: "",
+        sysCode2:"",
+        sysCode:"",
+        subSysCode:"",
+        subSys:"",
+
+        dataList: [],
+        detailList: [],
+        dataForm: {
+          "searchCon": "",
+          'factoryId': "",
+          "remark": "",
+          "equipTypeCode": "",
+          "systemName": "",
+          "subSystemName": "",
+          "factoryName": "",
+          "SYSTEM_Options": [],
+          'equipTypeName': '',
+          'subSystemCode': '',
+          'selectSys2': []
+        },
+        detailForm: {
+          // "id":"",
+          "pointType": "",
+          "factoryId":"",
+          "equipTypeDetailId": "",
+          "equipTypeId": "",
+          "attribueType": "",
+          "attribueCode": "",
+          "attribueValue": "",
+          "sortNo": "",
+          "attrType":"",
+
+        },
+        pointTypeOptions: [{
+          value: '1',
+          label: '遥信'
+        }, {
+          value: '2',
+          label: '遥测'
+        }, {
+          value: '3',
+          label: '遥控'
+        }, {
+          value: '4',
+          label: '遥调'
+        }, {
+          value: '5',
+          label: '遥脉'
+        }],
+        attribueType_Options: [{
+          value: '1',
+          label: '基础'
+        }, {
+          value: '2',
+          label: '实时'
+        }],
+        detailVisible: false,
+        infoForm: [],
+        pageIndex: 1,
+        pageSize: 10,
+        totalPage: 0,
+        totalCount: 0,
+        pageIndex2: 1,
+        pageSize2: 10,
+        totalPage2: 0,
+        totalCount2: 0,
+        current_typeID: '',
+        dataListLoading: false,
+        dataListLoading2: false,
+        dataListSelections: [],
+        detailListSelections: [],
+        options1: [],
+        selectedOptions1: [],
+        visible: false, //信息配置
+        infoVisible: false, //详细信息配置
+        dataRule: {
+          factoryId: [{
+            type:"number",
+            required: true,
+            message: '厂商不能为空',
+            trigger: 'change'
+          }],
+          selectSys2: [{
+            required: true,
+            message: '系统不能为空',
+            trigger: 'change'
+          }]
+        },
+        detailRule: {
+          pointType: [{
+            type:"string",
+            required: true,
+            message: '点位类型不能为空',
+            trigger: 'change'
+          }],
+          attribueCode: [{
+            required: true,
+            message: '属性编码不能为空',
+            trigger: 'change'
+          }]
+        }
+      }
+    },
+
+    mounted() {
+      this.init()
+      this.getDataList()
+      this.$http({
+        url: this.$http.adornUrl('/admin/tequiptype/equipfactory'),
+        method: 'post',
+        data:this.$http.adornData({"systemCode":this.selectSys[0]})
+      }).then(({
+        data
+      }) => {
+        if (data && data.code === 0) {
+          this.searchFactoryOptions = data.list
+        }
+      })
+    },
+    methods: {
+      
+     
+      //如果为1：基础   点位类型为空
+      changeSearchAttr(val){
+        if(val==1){
+          this.searchPoint = null
+        }else if(val!=1 && this.searchPoint==null){
+          this.searchPoint = "1"
+
+        }
+      },
+      changeAttribueType(val){
+        this.attribueCodeOption = []
+        if(val=='1'){
+          this.$http({
+          url: this.$http.adornUrl('/admin/equiptypedetial/attribute'),
+          method: 'post',
+          data: this.$http.adornData({
+            "attribueType": "1",
+            "pointType":null
+          })
+        }).then(({
+          data
+        }) => {
+          if (data && data.code == 0) {
+            this.attribueCodeOption = data.list
+
+          }
+        })
+        }
+        this.detailForm.attribueCode =""
+      },
+      //配置详情时，点位类型变化时
+      changePointType(val){
+        this.currentPointType = val
+        this.$http({
+          url: this.$http.adornUrl('/admin/tpoint/classifyType'),
+          method: 'post',
+          data: this.$http.adornData({
+            // "attribueType": this.currentAttribueType,
+            "pointType":val
+          })
+        }).then(({
+          data
+        }) => {
+          if (data && data.code == 0) {
+            this.attrTypeOptions = data.list
+            this.detailForm.attribueCode = ''
+            this.attribueCodeOption = []
+            // this.detailForm.attrType = this.attrTypeOptions[0].value
+            this.detailForm.attrType = data.list[0].value
+            this.$http({
+              url: this.$http.adornUrl('/admin/equiptypedetial/attribute'),
+              method: 'post',
+              data: this.$http.adornData({
+                "attribueType": this.currentAttribueType,
+                "classifyType": this.detailForm.attrType,
+                "pointType":this.detailForm.pointType
+              })
+            }).then(({
+              data
+            }) => {
+              if (data && data.code == 0) {
+                this.attribueCodeOption = data.list
+                // console.log(this.attribueCodeOption)
+                if(this.attribueCodeOption.length >= 1) {
+                  this.detailForm.attribueCode = this.attribueCodeOption[0].value
+                }             
+              }
+            })
+          }
+        })
+        
+      },
+       //配置详情时，点位归类变化时
+      changeAttrType(val){
+        this.attribueCodeOption = []
+        this.detailForm.attribueCode = ''
+        this.$http({
+          url: this.$http.adornUrl('/admin/equiptypedetial/attribute'),
+          method: 'post',
+          data: this.$http.adornData({
+            "attribueType": this.currentAttribueType,
+            "classifyType":val,
+            "pointType":this.detailForm.pointType
+          })
+        }).then(({
+          data
+        }) => {
+          if (data && data.code == 0) {
+            this.attribueCodeOption = data.list
+            if(this.attribueCodeOption.length >= 1) {
+              this.detailForm.attribueCode = this.attribueCodeOption[0].value
+            }       
+          }
+        })
+      },
+      changeSysHandle(val) {
+        // console.log(val)
+        this.currentSys = val[val.length - 1]
+        
+        
+        if(val.length>1){
+          this.sysCode = val[0]
+          this.subSysCode = val[val.length-1]
+        }else{
+          this.sysCode = val[0]
+          this.subSysCode = null
+        }
+        this.$http({
+          url: this.$http.adornUrl('/admin/tequiptype/equipfactory'),
+          method: 'post',
+          data:this.$http.adornData({"systemCode":this.selectSys[0]})
+        }).then(({
+          data
+        }) => {
+          if (data && data.code === 0) {
+            this.searchFactoryOptions = data.list
+          }
+        })
+
+      },
+      changeSysHandle2(val) {
+        // console.log(val)
+        this.sysCode2 = val[0]
+        if(val.length>1){
+          this.dataForm.systemCode = val[0]
+        this.dataForm.subSystemCode = val[val.length - 1]
+        // this.subSys = val[val.length - 1]
+        }else{
+          this.dataForm.systemCode = val[0]
+          this.dataForm.subSystemCode = null
+        // this.subSys = null
+
+        }
+        this.dataForm.factoryId = ""
+        this.$http({
+              url: this.$http.adornUrl('/admin/tequiptype/equipfactory'),
+              method: 'post',
+              data:this.$http.adornData({"systemCode":this.sysCode2})
+            }).then(({
+              data
+            }) => {
+              if (data && data.code === 0) {
+                this.factoryOptions = data.list
+              }
+            })
+        // this.factoryOptions = []
+        // console.log(this.currentSys)
+
+      },
+      //设备型号详细信息  新增|修改
+      addOrUpdateDetail(row) {        
+        this.detailVisible = true
+        this.$nextTick(() => {
+            if(row){
+              this.detailForm.id = row.equipTypeDetailId
+            }else{
+              this.detailForm.id = 0
+            }
+            this.detailVisible = true
+            this.$nextTick(() => {
+              // if (!this.detailForm.id) {
+                this.$refs['detailForm'].resetFields()
+                this.detailForm.pointType = ''
+                this.detailForm.equipTypeDetailId = ''
+                this.detailForm.equipTypeId = ''
+                // this.detailForm.attribueType = ''
+                this.detailForm.attribueCode = ''
+                this.detailForm.attribueValue = ''
+                this.detailForm.sortNo = ''
+                this.detailForm.attrType = ''
+              // }
+            })
+            if (this.detailForm.id) {
+              // console.log(this.detailForm)              
+                this.$http({
+                  url: this.$http.adornUrl('/admin/equiptypedetial/info/' + this.detailForm.id),
+                  method: 'post',
+                  params: this.$http.adornParams()
+                }).then(({
+                  data
+                }) => {
+                  if (data && data.code === 0) {
+                    this.detailForm.attribueType = data.equipTypeDetial.attribueType.toString()
+                    this.detailForm.pointType = data.equipTypeDetial.pointType? data.equipTypeDetial.pointType.toString():null
+                    this.detailForm.equipTypeId = data.equipTypeDetial.equipTypeId
+                    this.detailForm.equipTypeDetailId = data.equipTypeDetial.equipTypeId
+                    let datas = data
+                    if(datas.equipTypeDetial.pointType) {
+                      this.$http({
+                        url: this.$http.adornUrl('/admin/tpoint/classifyType'),
+                        method: 'post',
+                        data: this.$http.adornData({
+                          "pointType":datas.equipTypeDetial.pointType.toString()
+                        })
+                      }).then(({
+                        data
+                      }) => {
+                        if (data && data.code == 0) {
+                          this.attrTypeOptions = data.list
+                          this.$nextTick(()=>{
+                            this.detailForm.attrType = datas.equipTypeDetial.classifyType.toString()
+                          })
+                          
+                        }
+                      })
+                    }
+                    
+                    
+                    this.$http({
+                      url: this.$http.adornUrl('/admin/equiptypedetial/attribute'),
+                      method: 'post',
+                      data: this.$http.adornData({
+                        "attribueType": datas.equipTypeDetial.attribueType.toString(),  // 属性类别
+                        'classifyType':datas.equipTypeDetial.classifyType,  // 	点位归类
+                        "pointType":datas.equipTypeDetial.pointType ? datas.equipTypeDetial.pointType.toString() : null
+                      })
+                    }).then(({
+                      data
+                    }) => {
+                      if (data && data.code == 0) {
+                        this.attribueCodeOption = data.list
+                        this.detailForm.attribueCode = datas.equipTypeDetial.attribueCode
+                      }
+                    })
+                    
+                    
+                    
+                    // this.detailForm.equipTypeCode = datas.equipTypeDetial.equipTypeCode
+                    // this.detailForm.equipTypeName = datas.equipTypeDetial.equipTypeName
+                    // this.detailForm.factoryId = datas.equipTypeDetial.factoryId
+                    // this.detailForm.remark = datas.equipTypeDetial.remark
+                    this.detailForm.sortNo = datas.equipTypeDetial.sortNo
+                    this.detailForm.attribueValue = datas.equipTypeDetial.attribueValue
+
+
+                  }
+                })
+
+            }else{
+              this.$nextTick(() => {
+                this.detailForm.attribueType = '2'
+                this.attrTypeOptions = []
+                this.attribueCodeOption = []
+              })
+             
+            }
+
+        })
+      },
+
+      //搜索条件数据
+      init() {
+        this.$http({
+          url: this.$http.adornUrl('/admin/tequip/condition/system'),
+          method: 'post',
+          data: this.$http.adornData({
+            "orgId": this.$store.state.user.orgId
+          })
+        }).then(({
+          data
+        }) => {
+          if (data && data.code == 0) {
+            this.sysOptons = data.list
+
+          }
+        })
+      },
+
+      // 搜索条件数据-组织机构
+      handleChange1(value) {
+        // console.log(value);
+      },
+      f(n) {
+        // console.log(n)
+        for(let i=0;i<n.length;i++){
+          if(n[i].value == this.selectSys) {
+            this.voType = n[i].voType
+          } else if(n[i].children && n[i].children.length > 0){
+            this.$options.methods.f.bind(this)(n[i].children)
+          }
+        }
+      },
+      // 获取数据列表
+      getDataList(params) {
+        // this.$options.methods.f.bind(this)(this.sysOptons)
+        // console.log(this.voType)
+        if(params){
+          this.pageIndex=1
+        }
+        this.dataListLoading = true
+        this.$http({
+          url: this.$http.adornUrl('/admin/tequiptype/list'),
+          method: 'post',
+          data: this.$http.adornData({
+            'page': this.pageIndex.toString(),
+            'limit': this.pageSize.toString(),
+            "equipTypeName": this.dataForm.searchCon,
+            "systemCode": this.sysCode,
+            "factoryId":this.conFactoryId?this.conFactoryId.toString():null,
+            "subSystemCode": this.subSysCode
+          })
+        }).then(({
+          data
+        }) => {
+          if (data && data.code == 0) {
+            // this.dataList = data.page.list
+            this.dataList = data.page.list
+            this.totalPage = data.page.totalCount
+          } else {
+            this.dataList = []
+            this.totalPage = 0
+          }
+          this.dataListLoading = false
+        })
+      },
+      // 每页数
+      sizeChangeHandle(val) {
+        this.pageSize = val
+        this.pageIndex = 1
+        this.getDataList()
+      },
+      sizeChangeHandle2(val) {
+        this.pageSize2 = val
+        this.pageIndex2 = 1
+        this.getDataList()
+      },
+      // 当前页
+      currentChangeHandle(val) {
+        this.pageIndex = val
+        this.getDataList()
+      },
+      currentChangeHandle2(val) {
+        this.pageIndex2 = val
+        this.detailHandle(this.current_typeID)
+      },
+      // 多选
+      selectionChangeHandle(val) {
+        this.dataListSelections = val
+      },
+      selectionChangeHandle2(val) {
+        this.detailListSelections = val
+      },
+      // 新增 / 修改
+      addOrUpdateHandle(id,sysId) {
+        this.visible = true
+        this.$nextTick(() => {
+          this.dataForm.id = id || 0
+          this.visible = true
+          this.$nextTick(() => {
+            // if (!this.dataForm.id) {
+              this.$refs['dataForm'].resetFields()
+              this.factoryOptions = []
+              // this.dataForm.equipTypeName = ''
+            // }
+          })
+          if (this.dataForm.id) {
+            this.sysCode2 = sysId
+            this.$http({
+              url: this.$http.adornUrl('/admin/tequiptype/equipfactory'),
+              method: 'post',
+              data:this.$http.adornData({"systemCode":this.sysCode2})
+            }).then(({
+              data
+            }) => {
+              if (data && data.code === 0) {
+                this.factoryOptions = data.list
+              }
+            })
+           
+            this.$http({
+              url: this.$http.adornUrl('/admin/tequiptype/info/' + this.dataForm.id),
+              method: 'post',
+              params: this.$http.adornParams()
+            }).then(({
+              data
+            }) => {
+              if (data && data.code === 0) {
+                this.dataForm.equipTypeId = this.dataForm.id
+                this.dataForm.equipTypeCode = data.tEquipType.equipTypeCode
+                this.dataForm.equipTypeName = data.tEquipType.equipTypeName
+                this.dataForm.factoryId = data.tEquipType.factoryId
+                this.dataForm.remark = data.tEquipType.remark
+                 
+                  let arr = []
+                  arr.push(data.tEquipType.orgId)
+                  this.dataForm.orgSelect = arr
+                  
+                  let array = []
+                  if(data.tEquipType.subSystemCode){
+                    array.push(data.tEquipType.systemCode)
+                    array.push(data.tEquipType.subSystemCode)
+                  }else{
+                    array.push(data.tEquipType.systemCode)
+                  }
+                 this.dataForm.selectSys2 = array
+                  this.currentFormSys = array[array.length-1] | null
+                // this.dataForm.SYSTEM_Options = data.SYSTEM_Options
+
+              }
+            })
+          }
+          else{
+              this.dataForm.selectSys2 = this.selectSys
+          }
+
+        })
+      },
+      //获取设备型号详细列表
+      detailHandle(id,isFirst,name) {
+        if(isFirst=='first'){
+          this.pageIndex2=1
+        }
+        // console.log(id)
+       
+        this.current_typeID = parseInt(id)?id:this.current_typeID
+        this.infoVisible = true
+        this.$nextTick(() => {
+          if(name){
+            this.dataForm.equipTypeName = name
+          }
+            this.$http({
+              url: this.$http.adornUrl('/admin/equiptypedetial/list'),
+              method: 'post',
+              data: this.$http.adornData({
+                'page': this.pageIndex2.toString(),
+            'limit': this.pageSize2.toString(),
+            "attribueType": this.searchAttr,
+            "equipTypeId":this.current_typeID.toString(),
+            "pointType":this.searchPoint
+              })
+            }).then(({
+              data
+            }) => {
+              if (data && data.code === 0) {
+                this.detailList = data.page.list
+                this.totalPage2 = data.page.totalCount
+                // this.totalCount2 = data.page.totalCount2   
+              } else {
+                this.detailList = []
+                this.totalPage2 = 0
+              }
+              if(this.searchAttr==1){
+          this.isValue =true;
+        }else{
+          this.isValue = false
+        }
+              this.dataListLoading2 = false
+            })
+
+        })
+      },
+      // 删除
+      deleteHandle(id) {
+        if(id){
+          id=parseInt(id)
+        }
+        var ids = id ? [id] : this.dataListSelections.map(item => {
+          return item.equipTypeId
+        })
+        this.$confirm(`确定${id ? '删除' : '批量删除'}操作?`, '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }).then(() => {
+          this.$http({
+            url: this.$http.adornUrl('/admin/tequiptype/delete'),
+            method: 'post',
+            data: ids
+          }).then(({
+            data
+          }) => {
+            if (data && data.code === 0) {
+                  this.getDataList()
+              this.$message({
+                message: '操作成功',
+                type: 'success',
+                duration: 1500,
+                onClose: () => {
+                  // this.detailHandle(this.current_typeID)
+                }
+              })
+            } else {
+              this.$message.error(data.msg)
+            }
+          })
+        }).catch(() => {})
+      },
+      //设备详情删除
+      detailDeleteHandle(id) {
+        var userIds = id ? [id] : this.detailListSelections.map(item => {
+          return item.equipTypeDetailId
+        })
+        this.$confirm('确定删除操作?', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }).then(() => {
+          this.$http({
+            url: this.$http.adornUrl('/admin/equiptypedetial/delete'),
+            method: 'post',
+            data: this.$http.adornData(userIds, false)
+          }).then(({
+            data
+          }) => {
+            if (data && data.code === 0) {
+                  this.detailHandle(this.current_typeID)
+              this.$message({
+                message: '操作成功',
+                type: 'success',
+                duration: 1500,
+                onClose: () => {
+                  // this.getDataList()
+                }
+              })
+            } else {
+              this.$message.error(data.msg)
+            }
+          })
+        }).catch(() => {})
+      },
+      // 设备型号详情表单提交
+      detailFormSubmit() {
+        this.$refs['detailForm'].validate((valid) => {
+          if (valid) {
+            if(this.detailForm.id){
+              this.$http({
+              url: this.$http.adornUrl('/admin/equiptypedetial/update'),
+              method: 'post',
+              data: this.$http.adornData({
+                'equipTypeId': this.current_typeID,
+                 'equipTypeDetailId': this.detailForm.equipTypeDetailId,
+                 "attribueType":this.detailForm.attribueType,
+                'equipTypeId': this.current_typeID,
+                'attribueCode': this.detailForm.attribueCode,
+                'attribueValue': this.detailForm.attribueType ==1?this.detailForm.attribueValue:null,
+                'pointType': this.detailForm.pointType,
+              })
+            }).then(({
+              data
+            }) => {
+              if (data && data.code === 0) {
+                this.detailVisible = false
+                    // this.$emit('refreshDataList')
+                    this.detailHandle(this.current_typeID)
+                this.$message({
+                  message: '操作成功',
+                  type: 'success',
+                  duration: 1500,
+                  onClose: () => {
+                    
+                  }
+                })
+                if (this.detailForm) {
+                this.$refs['detailForm'].resetFields()
+              }
+              } else {
+                this.$message.error(data.msg)
+              }
+            })
+            }else{
+              this.$http({
+              url: this.$http.adornUrl('/admin/equiptypedetial/save'),
+              method: 'post',
+              data: this.$http.adornData({
+                // 'equipTypeDetailId': this.detailForm.equipTypeDetailId || undefined,
+                "attribueType":this.detailForm.attribueType,
+                'equipTypeId': this.current_typeID,
+                'attribueCode': this.detailForm.attribueCode,
+                'attribueValue': this.detailForm.attribueType ==1?this.detailForm.attribueValue:null,
+                'pointType': this.detailForm.pointType,
+              })
+            }).then(({
+              data
+            }) => {
+              if (data && data.code === 0) {
+                this.detailVisible = false
+                    // this.$emit('refreshDataList')
+                    this.detailHandle(this.current_typeID)
+                this.$message({
+                  message: '操作成功',
+                  type: 'success',
+                  duration: 1500,
+                  onClose: () => {
+                    
+                  }
+                })
+              } else {
+                this.$message.error(data.msg)
+              }
+            })
+            }
+           
+          }
+        })
+      },
+      // 设备信息表单提交
+      dataFormSubmit() {
+        this.$refs['dataForm'].validate((valid) => {
+          if (valid) {
+            if(this.dataForm.id){
+              this.$http({
+              url: this.$http.adornUrl('/admin/tequiptype/update'),
+              method: 'post',
+              data: this.$http.adornData({
+                "equipTypeId" : this.dataForm.equipTypeId || null,
+                "systemCode" : this.dataForm.systemCode || null,
+                "subSystemCode" : this.dataForm.subSystemCode || null,
+                "factoryId" : this.dataForm.factoryId || null,
+                "equipTypeCode" : this.dataForm.equipTypeCode ||null,
+                "equipTypeName" : this.dataForm.equipTypeName || null,
+                "remark" : this.dataForm.remark || null,
+              })
+            }).then(({
+              data
+            }) => {
+              if (data && data.code === 0) {
+                this.visible = false
+                    // this.$emit('refreshDataList')
+                    this.getDataList()
+                this.$message({
+                  message: '操作成功',
+                  type: 'success',
+                  duration: 1500,
+                  onClose: () => {
+                    
+                  }
+                })
+              } else {
+                this.$message.error(data.msg)
+              }
+            })
+            }else{
+              if(this.dataForm.selectSys2.length==1){
+                this.dataForm.systemCode =this.dataForm.selectSys2[0]
+                this.dataForm.subSystemCode =null
+              }else if(this.dataForm.selectSys2.length==2){
+                this.dataForm.systemCode =this.dataForm.selectSys2[0]
+                this.dataForm.subSystemCode =this.dataForm.selectSys2[1]
+              }
+              this.$http({
+              url: this.$http.adornUrl('/admin/tequiptype/save'),
+              method: 'post',
+              data: this.$http.adornData({
+                "systemCode" : this.dataForm.systemCode,
+                "subSystemCode" : this.dataForm.subSystemCode,
+                "factoryId" : this.dataForm.factoryId || null,
+                "equipTypeCode" : this.dataForm.equipTypeCode ||null,
+                "equipTypeName" : this.dataForm.equipTypeName || null,
+                "remark" : this.dataForm.remark || null,
+              })
+            }).then(({
+              data
+            }) => {
+              if (data && data.code === 0) {
+                this.visible = false
+                    // this.$emit('refreshDataList')
+                    this.getDataList()
+                this.$message({
+                  message: '操作成功',
+                  type: 'success',
+                  duration: 1500,
+                  onClose: () => {
+                    
+                  }
+                })
+              } else {
+                this.$message.error(data.msg)
+              }
+            })
+            }
+            
+          }
+        })
+      },
+      ftAttribueType(val){
+        if (val.attribueType === 1) {
+          return "基础"
+        } else if (val.attribueType === 2) {
+          return "实时"
+        }
+      }
+    }
+  }
+
+</script>
+<style scoped>
+  .dialogDiv>>> .el-form-item__error {
+    left: 33%;
+}
+  .dialogDiv>>>.el-cascader__label{
+    text-align: center;
+  }
+  .searchSelect{
+    width: 15%;
+  }
+  /* .el-input-number{
+    width: 220px;
+  } */
+  .smtool {
+    margin: 0 0 20px 0;
+    text-align: right;
+  }
+
+  .smtool>>>.el-input__inner {
+    height: 32px;
+  }
+
+  .el-tree {
+    width: 15%;
+    height: 100%;
+    display: block;
+    /* border:1px red solid; */
+    float: left;
+
+  }
+
+  .device_firm>>>.el-dialog {
+    height: 60%;
+    border: 1px red solid;
+  }
+
+  /* .el-table{
+      width: 84%;
+      float: right;
+    } */
+  .el-dialog .el-table {
+    width: 100%;
+    float: none;
+    /* position: static; */
+  }
+
+  /* .dialogDiv>>>.el-form-item__label {
+    width: 40% !important;
+    padding-right: 20px;
+  } */
+
+  .device_firm>>>.expand_info {
+    font-size: 0;
+  }
+
+  .device_firm>>>.el-form--inline .el-form-item label {
+    width: 100px;
+    color: #99a9bf;
+  }
+  .device-form .el-form-item{
+    margin-bottom: 0;
+  }
+  .device_firm>>>.expand_info .el-form-item {
+    margin-right: 0;
+    margin-bottom: 0;
+    width: 20%;
+  }
+
+  .device_firm>>>.el-dialog .el-dialog__body {
+    height: 70%;
+    overflow: auto;
+    padding: 0 20px;
+    margin-bottom: 30px;
+    margin-top: 30px;
+  }
+
+  /* .el-dialog form {
+    background-color: #f0f3f3;
+    border-radius: 5px;
+    padding: 30px 0;
+  } */
+
+  /* .el-dialog form>>>.el-input {
+    width: 220px;
+  } */
+
+  /* .dialogDiv>>>.el-input__inner {
+    text-align: center;
+
+  } */
+
+  .s_title {
+    position: absolute;
+    z-index: 20000;
+    top: -10px;
+    left: 30px;
+  }
+
+  .s_title .first_label {
+    margin-top: 20px;
+  }
+
+</style>
+<style lang="scss" scoped>
+@import "../../../../assets/scss/_dialog.scss"
+</style>

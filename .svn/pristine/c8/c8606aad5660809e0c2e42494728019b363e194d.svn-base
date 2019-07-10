@@ -1,0 +1,203 @@
+<template>
+  <el-dialog
+    :title="!dataForm.id ? '新增' : '修改'"
+    :close-on-click-modal="false"
+    :visible.sync="visible"
+    center="center">
+    <el-form :model="dataForm" :rules="dataRule" ref="dataForm" @keyup.enter.native="dataFormSubmit()" label-width="80px">
+    <el-form-item label="组织机构标识" prop="orgId">
+      <el-input v-model="dataForm.orgId" placeholder="组织机构标识"></el-input>
+    </el-form-item>
+    <el-form-item label="税号" prop="taxNo">
+      <el-input v-model="dataForm.taxNo" placeholder="税号"></el-input>
+    </el-form-item>
+    <el-form-item label="银行开户号" prop="bankNo">
+      <el-input v-model="dataForm.bankNo" placeholder="银行开户号"></el-input>
+    </el-form-item>
+    <el-form-item label="联系人" prop="atten">
+      <el-input v-model="dataForm.atten" placeholder="联系人"></el-input>
+    </el-form-item>
+    <el-form-item label="电话" prop="tel">
+      <el-input v-model="dataForm.tel" placeholder="电话"></el-input>
+    </el-form-item>
+    <el-form-item label="备用电话" prop="alterTel">
+      <el-input v-model="dataForm.alterTel" placeholder="备用电话"></el-input>
+    </el-form-item>
+    <el-form-item label="传真" prop="fax">
+      <el-input v-model="dataForm.fax" placeholder="传真"></el-input>
+    </el-form-item>
+    <el-form-item label="单位图片" prop="picUrl">
+      <el-input v-model="dataForm.picUrl" placeholder="单位图片"></el-input>
+    </el-form-item>
+    <el-form-item label="区域编号" prop="regId">
+      <el-input v-model="dataForm.regId" placeholder="区域编号"></el-input>
+    </el-form-item>
+    <el-form-item label="地址" prop="addr">
+      <el-input v-model="dataForm.addr" placeholder="地址"></el-input>
+    </el-form-item>
+    <el-form-item label="经度" prop="lng">
+      <el-input v-model="dataForm.lng" placeholder="经度"></el-input>
+    </el-form-item>
+    <el-form-item label="纬度" prop="lat">
+      <el-input v-model="dataForm.lat" placeholder="纬度"></el-input>
+    </el-form-item>
+    <el-form-item label="注册时间" prop="registTime">
+      <el-input v-model="dataForm.registTime" placeholder="注册时间"></el-input>
+    </el-form-item>
+    <el-form-item label="备注" prop="remark">
+      <el-input v-model="dataForm.remark" placeholder="备注"></el-input>
+    </el-form-item>
+    </el-form>
+    <span slot="footer" class="dialog-footer">
+      <el-button @click="visible = false">取消</el-button>
+      <el-button type="primary" @click="dataFormSubmit()">确定</el-button>
+    </span>
+  </el-dialog>
+</template>
+
+<script>
+  export default {
+    data () {
+      return {
+        visible: false,
+        dataForm: {
+          orgInfoId: 0,
+          orgId: '',
+          taxNo: '',
+          bankNo: '',
+          atten: '',
+          tel: '',
+          alterTel: '',
+          fax: '',
+          picUrl: '',
+          regId: '',
+          addr: '',
+          lng: '',
+          lat: '',
+          registTime: '',
+          remark: ''
+        },
+        dataRule: {
+          orgId: [
+            { required: true, message: '组织机构标识不能为空', trigger: 'blur' }
+          ],
+          taxNo: [
+            { required: true, message: '税号不能为空', trigger: 'blur' }
+          ],
+          bankNo: [
+            { required: true, message: '银行开户号不能为空', trigger: 'blur' }
+          ],
+          atten: [
+            { required: true, message: '联系人不能为空', trigger: 'blur' }
+          ],
+          tel: [
+            { required: true, message: '电话不能为空', trigger: 'blur' }
+          ],
+          alterTel: [
+            { required: true, message: '备用电话不能为空', trigger: 'blur' }
+          ],
+          fax: [
+            { required: true, message: '传真不能为空', trigger: 'blur' }
+          ],
+          picUrl: [
+            { required: true, message: '单位图片不能为空', trigger: 'blur' }
+          ],
+          regId: [
+            { required: true, message: '区域编号不能为空', trigger: 'blur' }
+          ],
+          addr: [
+            { required: true, message: '地址不能为空', trigger: 'blur' }
+          ],
+          lng: [
+            { required: true, message: '经度不能为空', trigger: 'blur' }
+          ],
+          lat: [
+            { required: true, message: '纬度不能为空', trigger: 'blur' }
+          ],
+          registTime: [
+            { required: true, message: '注册时间不能为空', trigger: 'blur' }
+          ],
+          remark: [
+            { required: true, message: '备注不能为空', trigger: 'blur' }
+          ]
+        }
+      }
+    },
+    methods: {
+      init (id) {
+        this.dataForm.orgInfoId = id || 0
+        this.visible = true
+        this.$nextTick(() => {
+          this.$refs['dataForm'].resetFields()
+          if (this.dataForm.orgInfoId) {
+            this.$http({
+              url: this.$http.adornUrl(`/sys/orginfo/info/${this.dataForm.orgInfoId}`),
+              method: 'get',
+              params: this.$http.adornParams()
+            }).then(({data}) => {
+              if (data && data.code === 0) {
+                this.dataForm.orgId = data.tsysorginfo.orgId
+                this.dataForm.taxNo = data.tsysorginfo.taxNo
+                this.dataForm.bankNo = data.tsysorginfo.bankNo
+                this.dataForm.atten = data.tsysorginfo.atten
+                this.dataForm.tel = data.tsysorginfo.tel
+                this.dataForm.alterTel = data.tsysorginfo.alterTel
+                this.dataForm.fax = data.tsysorginfo.fax
+                this.dataForm.picUrl = data.tsysorginfo.picUrl
+                this.dataForm.regId = data.tsysorginfo.regId
+                this.dataForm.addr = data.tsysorginfo.addr
+                this.dataForm.lng = data.tsysorginfo.lng
+                this.dataForm.lat = data.tsysorginfo.lat
+                this.dataForm.registTime = data.tsysorginfo.registTime
+                this.dataForm.remark = data.tsysorginfo.remark
+              }
+            })
+          }
+        })
+      },
+      // 表单提交
+      dataFormSubmit () {
+        this.$refs['dataForm'].validate((valid) => {
+          if (valid) {
+            this.$http({
+              url: this.$http.adornUrl(`/sys/orginfo/${!this.dataForm.orgInfoId ? 'save' : 'update'}`),
+              method: 'post',
+              data: this.$http.adornData({
+                'orgInfoId': this.dataForm.orgInfoId || undefined,
+                'orgId': this.dataForm.orgId,
+                'taxNo': this.dataForm.taxNo,
+                'bankNo': this.dataForm.bankNo,
+                'atten': this.dataForm.atten,
+                'tel': this.dataForm.tel,
+                'alterTel': this.dataForm.alterTel,
+                'fax': this.dataForm.fax,
+                'picUrl': this.dataForm.picUrl,
+                'regId': this.dataForm.regId,
+                'addr': this.dataForm.addr,
+                'lng': this.dataForm.lng,
+                'lat': this.dataForm.lat,
+                'registTime': this.dataForm.registTime,
+                'remark': this.dataForm.remark
+              })
+            }).then(({data}) => {
+              if (data && data.code === 0) {
+                this.visible = false
+                    this.$emit('refreshDataList')
+                this.$message({
+                  message: '操作成功',
+                  type: 'success',
+                  duration: 1500,
+                  onClose: () => {
+                    
+                  }
+                })
+              } else {
+                this.$message.error(data.msg)
+              }
+            })
+          }
+        })
+      }
+    }
+  }
+</script>

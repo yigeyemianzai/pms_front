@@ -1,0 +1,1557 @@
+<template>
+  <div class="fan" id="fan">
+    <div class="fan_input">
+      <el-date-picker type="date" v-model="value" format="yyyy-MM-dd" value-format="yyyy-MM-dd" :picker-options="pickerOptions">
+      </el-date-picker>
+    </div>
+    <div class="fan-echarts">
+      <div id="fan-echart"></div>
+    </div>
+    <div class="control_cv">
+      风机盘管策略：
+      <el-radio v-model="cv" label="0">运行中</el-radio>
+      <el-radio v-model="cv" label="1">停止</el-radio>
+      <el-button type="primary" @click="execute">执行</el-button>
+    </div>
+    <div class="fan-lists">
+      <!-- <div class="fan-top">
+        <div class="fan-top-button">
+          <el-button type="info" plain @click="showFanDailog()">群控</el-button>
+          <el-cascader placeholder="" :options="options" filterable @change='fanData' v-model="options1"></el-cascader>
+        </div>
+      </div> -->
+      <div class="fan-bottom" v-if="show">
+        <div class="fenqu">
+          <div class="single_area"  v-for="item in areaData" :key="item.areaId" >
+            <div class="area_top">
+              <div class="area_pic"><img src="~@/assets/images/222.png" alt="" @click="picAction(item.areaId)"></div>
+              <div class="area_tinfo">
+                <div class="single_id">编号:&nbsp;&nbsp;&nbsp;{{item.areaId}}</div>
+                <div class="single_name">名称:&nbsp;&nbsp;&nbsp;{{item.areaName}} </div>
+              </div>
+            </div>
+            <div class="list-visit" >
+                <!-- <p v-for="(one,index) in item.data"  :key="one.index" :class="index%2==0?'':'list-color'">
+                 <span>{{item.data[index].name}}:{{item.data[index].value}}{{item.data[index].unit}}</span>
+               </p>  -->
+               <p >
+                <span>室内温度:&nbsp;&nbsp;{{item.avgRoomTemp}}&nbsp;℃</span>
+              </p>
+              <p  class='list-color'>
+                <span>设备数量:&nbsp;&nbsp;{{item.total}}</span>
+              </p>
+              <p>
+                <span>未运行设备数量:&nbsp;&nbsp;{{item.offLineCount}}</span>
+              </p>
+              
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="fan-bottom" v-else>
+          <div class="bottom_button inclear">
+              <el-button type="warning" @click="showZonePage()">返回</el-button>
+              <el-button type="primary" @click="showFanDailog()" >群控</el-button>           
+          </div>
+        <div class="fan-bootom-list" v-for="item in fanListData" :key="item.id">
+          <div class="fan-bootom-list-top">
+            <div class="top-img">
+              <img src="~@/assets/images/v020.png" alt="">
+            </div>
+            <div class="top-data">
+              <span>{{item.name}} <br />{{item.wk}}</span>
+            </div>
+          </div>
+          <div class="fan-bootom-list-bottom">
+            <div class="bottom-list">
+              <div class="bottom-list-img">
+                <img src="~@/assets/images/shot-right-list3.png" alt="">
+              </div>
+              <div class="bottom-list-data">
+                <span>运行状态：{{item.runStatus | judgeStatus}}</span>
+              </div>
+            </div>
+            <div class="bottom-list">
+              <div class="bottom-list-img">
+                <img src="~@/assets/images/v016.png" alt="">
+              </div>
+              <div class="bottom-list-data">
+                <span>运行模式：{{item.airMode | judgeAirMode}}</span>
+              </div>
+            </div>
+            <div class="bottom-list">
+              <div class="bottom-list-img">
+                <img src="~@/assets/images/v015.png" alt="">
+              </div>
+              <div class="bottom-list-data">
+                <span>运行风量：{{item.airVolume | judgeAirVolume}}</span>
+              </div>
+            </div>
+            <div class="bottom-list">
+              <div class="bottom-list-img">
+                <img src="~@/assets/images/v014.png" alt="">
+              </div>
+              <div class="bottom-list-data">
+                <span>运行温度：{{item.roomTemp}}℃</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <el-dialog title="群控选择" :visible.sync="dialogFanVisible">
+          <div class="groupcontrol">
+            <div class="groupcontrol-top" style="z-index: 1">
+              <el-checkbox :indeterminate="isIndeterminate" v-model="checkAll" @change="handleCheckAllChange">全选</el-checkbox>
+              <el-checkbox-group v-model="checkboxed" @change="handleCheckedCitiesChange">
+                <el-checkbox :label="item.equipId" v-for="item in fanListData" :key="item.equipId">{{item.name}}</el-checkbox>
+              </el-checkbox-group>
+            </div>
+            <div class="groupcontrol-footer">
+              <div class="groupcontrol-footer-cont">
+                <p>开关设置</p>
+                <el-radio-group v-model="radio1">
+                  <el-radio :label="0">开</el-radio>
+                  <el-radio :label="1">关</el-radio>
+                </el-radio-group>
+                <el-button plain size="mini" @click="turns()">设定</el-button>
+              </div>
+              <div class="groupcontrol-footer-cont">
+                <p>温度调节</p>
+                <el-select v-model="valueTemperature" placeholder="请选择" size='mini'>
+                  <el-option v-for="item in optionTemperature" :key="item.value" :label="item.label" :value="item.value">
+                  </el-option>
+                </el-select>
+                <el-button plain size="mini" @click="temp">设定</el-button>
+              </div>
+              <div class="groupcontrol-footer-cont">
+                <p>风量调节</p>
+                <el-radio-group v-model="radio2">
+                  <el-radio :label="1">低速</el-radio>
+                  <el-radio :label="2">中速</el-radio>
+                  <el-radio :label="3">高速</el-radio>
+                </el-radio-group>
+                <el-button plain size="mini" @click="volume">设定</el-button>
+              </div>
+              <div class="groupcontrol-footer-cont">
+                <p>运行模式</p>
+                <el-radio-group v-model="radio3">
+                  <el-radio :label="1">制冷</el-radio>
+                  <el-radio :label="2">制热</el-radio>
+                  <el-radio :label="3">自动</el-radio>
+                </el-radio-group>
+                <el-button plain size="mini" @click="mode">设定</el-button>
+              </div>
+            </div>
+          </div>
+        </el-dialog>
+      </div>
+    </div>
+  </div>
+</template>
+<script>
+  import {
+    dateFormatter
+  } from '@/utils/index'
+  export default {
+    data() {
+      return {
+        currentCv:{},
+        cv:null,
+        ccv:null,
+        checkAll: false,
+        isIndeterminate: true,
+        initItems: "",
+        value: dateFormatter(new Date(), false),
+        pickerOptions: {
+          disabledDate(time) {
+            return time.getTime() > Date.now() - 8.64e6
+          }
+        },
+        options1: [],
+        options: [],
+        radio3: 1,
+        radio2: 1,
+        valueTemperature: '',
+        optionTemperature: [
+          {
+            value: '16',
+            label: '16℃'
+          },
+          {
+            value: '17',
+            label: '17℃'
+          },
+          {
+            value: '18',
+            label: '18℃'
+          }, {
+            value: '19',
+            label: '19℃'
+          }, {
+            value: '20',
+            label: '20℃'
+          }, {
+            value: '21',
+            label: '21℃'
+          }, {
+            value: '22',
+            label: '22℃'
+          }, {
+            value: '23',
+            label: '23℃'
+          }, {
+            value: '24',
+            label: '24℃'
+          }, {
+            value: '25',
+            label: '25℃'
+          }, {
+            value: '26',
+            label: '26℃'
+          }, {
+            value: '27',
+            label: '27℃'
+          }, {
+            value: '28',
+            label: '28℃'
+          }, {
+            value: '29',
+            label: '29℃'
+          }, {
+            value: '30',
+            label: '30℃'
+          }, {
+            value: '31',
+            label: '31℃'
+          }, {
+            value: '32',
+            label: '32℃'
+          }
+        ],
+        radio1: 1,
+        dialogFanVisible: false, // 群控按钮页面
+        fanListData: '', // 风机信息
+        checkboxed: [],
+        aaa: [], //群控label
+        ws1: '', //风机盘管曲线ws
+        ws2: '', //风机盘管设备信息ws
+        areaData:'',//分区列表
+        show:true,//显示分区里模板
+      }
+    },
+    created() {
+      this.$http({
+            url: this.$http.adornUrl('/sys/schedule/info/vo/monitorFanCoil'),
+            method: 'get',
+            // data: this.$http.adornData()
+          }).then(({
+            data
+          }) => {
+            if (data.msg === 'success') {
+              this.currentCv = data.schedule
+              this.cv=data.schedule.status.toString()
+              this.ccv = data.schedule.status.toString()
+              console.log(this.cv)
+            }
+          })
+      // this.getSele()
+      let _this = this
+      //负荷直线图
+      this.$http({
+        url: this.$http.adornUrl('/device/fancoil/chart/hourload'),
+        method: 'post',
+        data: this.$http.adornData({
+          date: this.value
+        })
+      }).then(({
+        data
+      }) => {
+        // console.log(data)
+        if (data.msg === "success") {
+          // console.log(data)
+          //循环出24小时1440个点
+          let arr = [];
+          for (let i = 0; i < 24; i++) {
+            if (i < 10) {
+              i = "0" + i
+            }
+            for (let j = 0; j < 60; j++) {
+              if (j < 10) {
+                j = "0" + j
+              }
+              arr.push(i + ":" + j)
+            }
+          }
+          arr.push("24:00")
+          // this.cur_data = /* parseInt */ (data.chart.series[0].data.length / arr.length * 100)
+          this.electricityData = data.chart
+          // console.log(this.electricityData.legend)
+          var electricity = echarts.init(document.getElementById('fan-echart'));
+          var option = {
+            title: {
+              text: '风机盘管24小时负荷图',
+              textAlign: 'left',
+              padding: [0, 0, 20, 50]
+            },
+            tooltip: {
+              trigger: 'axis',
+              axisPointer: {
+                // type: 'cross',
+                label: {
+                  backgroundColor: '#6a7985'
+                }
+              }
+            },
+            grid: {
+              x: 70, // 表格左右距离
+              x2: 50
+            },
+            color: ['#4ECDB8', '#e00', '#F4A460'],
+            legend: {
+              data: this.electricityData.legend
+            },
+            xAxis: [{
+              type: 'category',
+              boundaryGap: false,
+              data: this.electricityData.xAxis == null ? arr : this.electricityData.xAxis,
+              axisLine: {
+                lineStyle: {
+                  type: 'solid',
+                  color: '#000', //左边线的颜色
+                  width: '1' //坐标线的宽度
+                }
+              },
+              axisLabel: {
+                textStyle: {
+                  color: '#000' //x轴刻度数值颜色
+                }
+              },
+              splitLine: {
+                show: false
+              }
+            }],
+            yAxis: [{
+              type: 'value',
+              min: 0,
+              max: this.electricityData.series[0].data == false ? 800 : null,
+              // max:2000,
+
+              axisLine: {
+                lineStyle: {
+                  type: 'solid',
+                  color: '#000', //y轴坐标轴颜色
+                  width: '1' //坐标轴宽度
+                }
+              },
+              axisLabel: {
+                //设置y轴数值为%
+                formatter: '{value}kW',
+                textStyle: {
+                  color: '#000' //y轴刻度数值颜色
+                }
+              },
+              splitLine: {
+                lineStyle: {
+                  type: 'solid'
+                }
+              }
+            }, {
+              type: 'value',
+              axisLine: {
+                lineStyle: {
+                  type: 'solid',
+                  color: '#000', //y轴坐标轴颜色
+                  width: '1' //坐标轴宽度
+                }
+              },
+              axisLabel: {
+                //设置y轴数值为%
+                formatter: '{value} ℃',
+                textStyle: {
+                  color: '#000' //y轴刻度数值颜色
+                }
+              },
+              splitLine: {
+                lineStyle: {
+                  type: 'solid'
+                }
+              }
+            }],
+            dataZoom: [{
+              // show:false,
+              zoomOnMouseWheel: true,
+              type: 'slider',
+              realtime: true, //拖动滚动条时是否动态的更新图表数据
+              height: 20, //滚动条高度
+              // start: _this.cur_data - 8.4, //滚动条开始位置（共100等份）
+              // end: _this.cur_data //结束位置（共100等份）
+            }, {
+              type: 'inside', //鼠标滚轮
+              realtime: true,
+            }, ],
+            series: [{
+                name: this.electricityData.series[0].name,
+                data: this.electricityData.series[0].data,
+                type: 'line',
+                // symbol: 'none',
+                itemStyle: {
+                  normal: {
+                    lineStyle: {
+                      color: '#4ECDB8'
+                    }
+                  }
+                }
+              },
+              {
+                // connectNulls: true,
+                name: this.electricityData.series[1].name,
+                data: this.electricityData.series[1].data,
+                type: 'line',
+                // symbol: 'none',
+                itemStyle: {
+                  normal: {
+                    lineStyle: {
+                      color: '#e00'
+                    }
+                  }
+                },
+                areaStyle: {
+                  normal: {
+                    // offset: 1,
+                    color: 'rgba(238, 0, 0,0.4)'
+                  }
+                },
+              }, {
+                yAxisIndex: 1,
+                name: this.electricityData.series[2].name,
+                data: this.electricityData.series[2].data,
+                type: 'line',
+                // symbol: 'none',
+                itemStyle: {
+                  normal: {
+                    lineStyle: {
+                      color: '#F4A460'
+                    }
+                  }
+                }
+              },
+            ]
+          }
+          electricity.setOption(option)
+          //风机盘管曲线图 websocket 推送
+          if ('WebSocket' in window) {
+            let arr = []
+            // console.log(data.chart.series)
+            for (let item of data.chart.series) {
+              // console.log(item.id)
+              arr.push(item.id)
+            }
+            let token = _this.$cookie.get('token')
+            // this.ws1 = new WebSocket("wss://echo.websocket.org");
+            this.ws1 = new WebSocket(window.SITE_CONFIG.wsBaseUrl + token + "/fancoil" + "/curve");
+            this.ws1.onopen = function (evt) {
+              _this.ws1.send(arr);
+            };
+            this.ws1.onmessage = function (evt) {
+              let data = JSON.parse(evt.data)
+              // console.log(data)
+              // let data = {id:'1',value:'300'}
+              for (let i = 0; i < _this.electricityData.series.length; i++) {
+                if (_this.electricityData.series[i].id == data.id) {
+                  _this.electricityData.series[i].data.push(data.value)
+                }
+              }
+              let chart = echarts.init(document.getElementById("fan-echart"))
+              chart.setOption(option);
+            };
+            this.ws1.onclose = function (evt) {
+              // console.log("Connection closed.");
+            };
+          } else {
+            alert('当前浏览器 Not support websocket')
+          }
+        }
+      })
+      this.$http({
+        url: this.$http.adornUrl('/device/bbb'),
+        method: 'post',
+      }).then(({data}) => {
+        if (data.msg === "success") {
+          console.log(data)
+            this.areaData = data.info
+            // console.log(this.areaData[0].data)
+          }
+      })
+    },
+    mounted() {
+      document.getElementById('fan').style.height = (window.innerHeight - 170) + 'px'
+      window.onresize = function () {
+        if (document.getElementById('fan')) {
+          document.getElementById('fan').style.height = (window.innerHeight - 170) + 'px'
+          echarts.init(document.getElementById('fan-echart')).resize()
+        }
+      }
+    },
+    destroyed() {
+      this.ws1.close()
+      this.ws2.close()
+    },
+    watch: {
+      'value': 'changeDate',
+    },
+    methods: {
+      execute(){
+        this.$confirm('是否继续?', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }).then(() => {
+          let jobId = this.currentCv.jobId
+          let status = this.currentCv.status
+          if(this.cv==this.ccv){
+            this.$message({
+                    message: "策略没有改变，操作失败！",
+                    type: 'warning'
+                  })
+          }else{
+            if(this.cv==1){
+            this.$http({
+            url: this.$http.adornUrl('/sys/schedule/pause'),
+            method: 'post',
+            data: [jobId,status]
+          }).then(({
+            data
+          }) => {
+            if (data.msg === 'success') {
+              this.$message({
+                    message: "设定成功",
+                    type: 'success'
+                  })
+              this.ccv="1"
+            }
+          })
+          }else{
+            this.$http({
+            url: this.$http.adornUrl('/sys/schedule/resume'),
+            method: 'post',
+            data: [jobId,status]
+          }).then(({
+            data
+          }) => {
+            if (data.msg === 'success') {
+              this.$message({
+                    message: "设定成功",
+                    type: 'success'
+                  })
+              this.ccv="0"
+            }
+          })
+          }
+          }
+          
+          
+        })
+      },
+      // 获取分区下拉信息
+      /* getSele() {
+        this.$http({
+          url: this.$http.adornUrl('/device/fancoil/area'),
+          method: 'post',
+          data: this.$http.adornData({
+            "energySysId": 6
+          })
+        }).then(({
+          data
+        }) => {
+          if (data.msg === 'success') {
+            this.options = data.info
+            this.options1 = [data.info[0].value]
+            let initAll = data.info[0].value
+            console.log(this.options1)
+            this.$options.methods.getFaninfo.bind(this)(initAll)
+          }
+        })
+      }, */
+      turns() {
+        this.$confirm('是否继续?', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }).then(() => {
+          let arr = []
+          for (let i = 0; i < this.checkboxed.length; i++) {
+            let obj = {}
+            obj.equipId = this.checkboxed[i],
+              obj.runStatus = this.radio1
+            arr.push(obj)
+          }
+          this.$http({
+            url: this.$http.adornUrl('/device/fancoil/control'),
+            method: 'post',
+            data: arr
+          }).then(({
+            data
+          }) => {
+            if (data.msg === 'success') {
+              this.$message({
+                    message: "设定成功",
+                    type: 'success'
+                  })
+            }
+          })
+        })
+
+      },
+      temp() {
+        this.$confirm('是否继续?', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }).then(() => {
+          let arr = []
+          for (let i = 0; i < this.checkboxed.length; i++) {
+            let obj = {}
+            obj.equipId = this.checkboxed[i],
+              obj.roomTemp = this.valueTemperature
+            arr.push(obj)
+          }
+          this.$http({
+            url: this.$http.adornUrl('/device/fancoil/control'),
+            method: 'post',
+            data: arr
+          }).then(({
+            data
+          }) => {
+            if (data.msg === 'success') {
+              this.$message({
+                    message: "设定成功",
+                    type: 'success'
+                  })
+            }
+          })
+        })
+
+      },
+      volume() {
+        this.$confirm('是否继续?', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }).then(() => {
+          let arr = []
+          for (let i = 0; i < this.checkboxed.length; i++) {
+            let obj = {}
+            obj.equipId = this.checkboxed[i],
+              obj.airVolume = this.radio2
+            arr.push(obj)
+          }
+          this.$http({
+            url: this.$http.adornUrl('/device/fancoil/control'),
+            method: 'post',
+            data: arr
+          }).then(({
+            data
+          }) => {
+            if (data.msg === 'success') {
+              this.$message({
+                    message: "设定成功",
+                    type: 'success'
+                  })
+            }
+          })
+        })
+
+      },
+      mode() {
+        this.$confirm('是否继续?', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }).then(() => {
+          let arr = []
+          for (let i = 0; i < this.checkboxed.length; i++) {
+            let obj = {}
+            obj.equipId = this.checkboxed[i],
+              obj.airMode = this.radio3
+            arr.push(obj)
+          }
+          this.$http({
+            url: this.$http.adornUrl('/device/fancoil/control'),
+            method: 'post',
+            data: arr
+          }).then(({
+            data
+          }) => {
+            if (data.msg === 'success') {
+              this.$message({
+                    message: "设定成功",
+                    type: 'success'
+                  })
+            }
+          })
+        })
+
+      },
+      changeDate() {
+        let _this = this
+        //负荷直线图
+        this.$http({
+          url: this.$http.adornUrl('/device/fancoil/chart/hourload'),
+          method: 'post',
+          data: this.$http.adornData({
+            date: this.value
+          })
+        }).then(({
+          data
+        }) => {
+          if (data.msg === "success") {
+            //循环出24小时1440个点
+            let arr = [];
+            for (let i = 0; i < 24; i++) {
+              if (i < 10) {
+                i = "0" + i
+              }
+              for (let j = 0; j < 60; j++) {
+                if (j < 10) {
+                  j = "0" + j
+                }
+                arr.push(i + ":" + j)
+              }
+            }
+            arr.push("24:00")
+            // this.cur_data = /* parseInt */ (data.chart.series[0].data.length / arr.length * 100)
+            // this.electricityData = data.chart
+            var electricity = echarts.init(document.getElementById('fan-echart'));
+            var option = {
+              title: {
+                text: '风机盘管24小时负荷图',
+                textAlign: 'left',
+                padding: [0, 0, 20, 50]
+              },
+              tooltip: {
+                trigger: 'axis',
+                axisPointer: {
+                  // type: 'cross',
+                  label: {
+                    backgroundColor: '#6a7985'
+                  }
+                }
+              },
+              grid: {
+                x: 70, // 表格左右距离
+                x2: 50
+              },
+              color: ['#4ECDB8', '#e00', '#F4A460'],
+              legend: {
+                data: data.chart.legend
+              },
+              xAxis: [{
+                type: 'category',
+                boundaryGap: false,
+                data: data.chart.xAxis == null ? arr : data.chart.xAxis,
+                axisLine: {
+                  lineStyle: {
+                    type: 'solid',
+                    color: '#000', //左边线的颜色
+                    width: '1' //坐标线的宽度
+                  }
+                },
+                axisLabel: {
+                  textStyle: {
+                    color: '#000' //x轴刻度数值颜色
+                  }
+                },
+                splitLine: {
+                  show: false
+                }
+              }],
+              yAxis: [{
+                type: 'value',
+                min: 0,
+                max: data.chart.series[0].data == false ? 800 : null,
+                // max:2000,
+                axisLine: {
+                  lineStyle: {
+                    type: 'solid',
+                    color: '#000', //y轴坐标轴颜色
+                    width: '1' //坐标轴宽度
+                  }
+                },
+                axisLabel: {
+                  //设置y轴数值为%
+                  formatter: '{value}kW',
+                  textStyle: {
+                    color: '#000' //y轴刻度数值颜色
+                  }
+                },
+                splitLine: {
+                  lineStyle: {
+                    type: 'solid'
+                  }
+                }
+              }, {
+                type: 'value',
+                axisLine: {
+                  lineStyle: {
+                    type: 'solid',
+                    color: '#000', //y轴坐标轴颜色
+                    width: '2' //坐标轴宽度
+                  }
+                },
+                axisLabel: {
+                  //设置y轴数值为%
+                  formatter: '{value} ℃',
+                  textStyle: {
+                    color: '#000' //y轴刻度数值颜色
+                  }
+                },
+                splitLine: {
+                  lineStyle: {
+                    type: 'solid'
+                  }
+                }
+              }],
+              dataZoom: [{
+                // show:false,
+                zoomOnMouseWheel: true,
+                type: 'slider',
+                realtime: true, //拖动滚动条时是否动态的更新图表数据
+                height: 20, //滚动条高度
+                // start: this.cur_data - 8.4, //滚动条开始位置（共100等份）
+                // end: this.cur_data //结束位置（共100等份）
+              }, {
+                type: 'inside', //鼠标滚轮
+                realtime: true,
+              }, ],
+              series: [{
+                  name: data.chart.series[0].name,
+                  data: data.chart.series[0].data,
+                  type: 'line',
+                  // symbol: 'none',
+                  itemStyle: {
+                    normal: {
+                      lineStyle: {
+                        color: '#4ECDB8'
+                      }
+                    }
+                  }
+                },
+                {
+                  // connectNulls: true,
+                  name: data.chart.series[1].name,
+                  data: data.chart.series[1].data,
+                  type: 'line',
+                  // symbol: 'none',
+                  itemStyle: {
+                    normal: {
+                      lineStyle: {
+                        color: '#e00'
+                      }
+                    }
+                  },
+                  areaStyle: {
+                    normal: {
+                      // offset: 1,
+                      color: 'rgba(238, 0, 0,0.4)'
+                    }
+                  },
+                }, {
+                  yAxisIndex: 1,
+                  name: data.chart.series[2].name,
+                  data: data.chart.series[2].data,
+                  type: 'line',
+                  // symbol: 'none',
+                  itemStyle: {
+                    normal: {
+                      lineStyle: {
+                        color: '#F4A460'
+                      }
+                    }
+                  }
+                },
+              ]
+            }
+            electricity.setOption(option)
+            if (this.value == dateFormatter(new Date(), false)) {
+              this.ws1.close()
+              //风机盘管曲线图 websocket 推送
+              if ('WebSocket' in window) {
+                let arr = []
+                // console.log(data.chart.series)
+                for (let item of data.chart.series) {
+                  // console.log(item.id)
+                  arr.push(item.id)
+                }
+                let token = _this.$cookie.get('token')
+                // this.ws1 = new WebSocket("wss://echo.websocket.org");
+                this.ws1 = new WebSocket(window.SITE_CONFIG.wsBaseUrl + token + "/fancoil" + "/curve");
+                this.ws1.onopen = function (evt) {
+                  _this.ws1.send(arr);
+                };
+                this.ws1.onmessage = function (evt) {
+                  let data = JSON.parse(evt.data)
+                  // console.log(data)
+                  // let data = {id:'1',value:'300'}
+                  for (let i = 0; i < _this.electricityData.series.length; i++) {
+                    if (_this.electricityData.series[i].id == data.id) {
+                      _this.electricityData.series[i].data.push(data.value)
+                      // console.log(_this.electricityData.series[i].data)
+                    }
+                  }
+                  let chart = echarts.init(document.getElementById("fan-echart"))
+                  chart.setOption(option);
+                };
+                this.ws1.onclose = function (evt) {
+                  // console.log("Connection closed.");
+                };
+              } else {
+                alert('当前浏览器 Not support websocket')
+              }
+            } else {
+              this.ws1.close()
+            }
+          }
+        })
+      },
+      // 获取风管信息
+      getFaninfo(value) {
+        let _this = this
+        // console.log(value)
+        // console.log(!(value instanceof(Array)))
+        if (!(value instanceof(Array)) === true) {
+          value = new Array(value)
+        }
+        this.$http({
+          url: this.$http.adornUrl('/device/fancoil/devices'),
+          method: 'post',
+          data: this.$http.adornData({
+            'areaIds': value
+          })
+        }).then(({
+          data
+        }) => {
+          if (data.msg === 'success') {
+            // value= value == undefined ? this.options[0].value : value 
+            // console.log(value)
+            this.fanListData = data.info
+            //风机盘管设备信息推送
+            if ('WebSocket' in window) {
+              if (this.ws2 != '') {
+                this.ws2.close()
+              }
+              let pageSign = "fancoil"
+              let fun = "area"
+              let arr = []
+              let token = this.$cookie.get('token')
+              // console.log(data.info)
+              for (let item of data.info) {
+                arr.push(item.runStatusId)
+                arr.push(item.airModeId)
+                arr.push(item.airVolumeId)
+                arr.push(item.roomTempId)
+              }
+              // this.ws2 = new WebSocket("wss://echo.websocket.org");
+              this.ws2 = new WebSocket(window.SITE_CONFIG.wsBaseUrl+ token + "/" + pageSign + "/" + fun);
+              // this.ws2 = new WebSocket(window.SITE_CONFIG.wsBaseUrl + token + "/" + pageSign + "/" + fun);
+
+              //心跳
+              _this.ws2.last_health_time = -1; // 上一次心跳时间, -1代表还没有发过心跳
+                _this.ws2.keepalive = function() {
+                    let time = new Date().getTime();
+                    
+                    if( _this.ws2.last_health_time !== -1 && (time -  _this.ws2.last_health_time) > 25000) { // 不是刚开始连接并且超过25s没有心跳
+                    
+                        _this.ws2.close()
+                    } else { 
+                        // 如果断网了，ws.send会无法发送消息出去。ws.bufferedAmount不会为0。
+                        if( _this.ws2.bufferedAmount === 0 &&  _this.ws2.readyState === 1) { 
+                            _this.ws2.send('ping');
+                            _this.ws2.last_health_time = time;
+                        }
+                    }
+                }
+              let reconnect = 0; //重连的时间
+              let reconnectMark = false; //是否重连过
+              this.ws2.onopen = function (evt) {
+                // console.log(arr)
+                _this.ws2.send(arr);
+
+                reconnect = 0;
+                        reconnectMark = false;
+                        _this.ws2.receiveMessageTimer = setTimeout(() => {
+                            _this.ws2.close();
+                        }, 45000); // 45s没收到信息，代表服务器出问题了，关闭连接。如果收到消息了，重置该定时器。
+                        if( _this.ws2.readyState === 1) { // 为1表示连接处于open状态
+                            _this.ws2.keepAliveTimer = setInterval(() => {
+                                _this.ws2.keepalive();
+                            }, 20000)
+                        }
+              };
+              this.ws2.onmessage = function (evt) {
+                if((evt.data)!="pong"){
+                    
+                      let receive = JSON.parse(evt.data)
+                    // console.log(data)
+                    // let receive = {id:"100006000014001",value:"0"}
+                    _this.fanListData.map(e => {
+                      if (e.runStatusId == receive.id) {
+                        e.runStatus = receive.value
+                      } else if (e.airModeId == receive.id) {
+                        e.airMode = receive.value
+                      } else if (e.airVolumeId == receive.id) {
+                        e.airVolume = receive.value
+                      } else if (e.roomTempId == receive.id) {
+                        e.roomTemp = receive.value
+                      }
+                    })
+                  
+                }
+                
+                
+
+                clearTimeout( _this.ws2.receiveMessageTimer); 
+                        _this.ws2.receiveMessageTimer = setTimeout(() => {
+                            _this.ws2.close();
+                        }, 45000); // 45s没收到信息，代表服务器出问题了，关闭连接。
+              }
+
+              this.ws2.onclose = function (evt) {
+                clearTimeout(_this.ws2.receiveMessageTimer);
+                        clearInterval(_this.ws2.keepAliveTimer);
+                        if(!reconnectMark) { // 如果没有重连过，进行重连。
+                        reconnect = new Date().getTime();
+                        reconnectMark = true;
+                        }
+                        let tempWs = _this.ws2; // 保存ws对象
+                        if(new Date().getTime() - reconnect >= 10000) { // 10秒中重连，连不上就不连了
+                            _this.ws2.close();
+                        } else {
+                            // _this.machineWs = new WebSocket(window.SITE_CONFIG.wsBaseUrl+ token + '/' + "fancoil" + "/" + "area")
+                            // _this.machineWs = new WebSocket(window.SITE_CONFIG.wsBaseUrl+ token + '/' + "fancoil" + "/" + "area");                            
+                            _this.ws2.onopen = tempWs.onopen;
+                            _this.ws2.onmessage = tempWs.onmessage;
+                            _this.ws2.onerror = tempWs.onerror;
+                            _this.ws2.onclose = tempWs.onclose;
+                            _this.ws2.keepalive = tempWs.keepalive;
+                            _this.ws2.last_health_time = -1;
+                        }
+              }
+            } else {
+              alert('当前浏览器 Not support websocket')
+            }
+
+          }
+
+        })
+      },
+      // 全选按钮
+      handleCheckAllChange(val) {
+        // console.log(this.fanListData)
+        let arr = []
+        for (let i = 0; i < this.fanListData.length; i++) {
+          let a = this.fanListData[i].equipId
+          // console.log(a)
+          arr.push(a)
+        }
+        this.checkboxed = val ? arr : []
+        this.isIndeterminate = false
+      },
+      handleCheckedCitiesChange(value) {
+        let checkedCount = value.length
+        this.checkAll = checkedCount === this.fanListData.length
+        this.isIndeterminate = checkedCount > 0 && checkedCount < this.fanListData.length
+      },
+      fanData([value]) {
+        // console.log(value)
+        // if(value instanceof(Array)){
+        //   alert(1)
+        // }
+        this.$options.methods.getFaninfo.bind(this)(value)
+      },
+      showFanDailog() {
+        this.dialogFanVisible = true
+      },
+      showZonePage(){
+        this.show=true;
+      },
+      //创建一个方法，返回value值对应的key
+      findKey(obj, value, compare = (a, b) => a === b) {
+        return Object.keys(obj).find(k => compare(obj[k], value))
+      },
+      ArrayIsEqual(arr1, arr2) { //判断2个数组是否相等
+        if (arr1 == "" || arr2 == "") {
+          return false
+        }
+        if (arr1 === arr2) { //如果2个数组对应的指针相同，那么肯定相等，同时也对比一下类型
+          return true;
+        } else {
+          if (arr1.length != arr2.length) {
+            return false;
+          } else { //长度相同
+            for (let i in arr1) { //循环遍历对比每个位置的元素
+              if (arr1[i] != arr2[i]) { //只要出现一次不相等，那么2个数组就不相等
+                return false;
+              }
+            } //for循环完成，没有出现不相等的情况，那么2个数组相等
+            return true;
+          }
+        }
+      },
+      picAction(id){
+        // alert(id)
+        this.show=!this.show;
+        this.$options.methods.getFaninfo.bind(this)(id)
+      }
+    },
+    filters: {
+      // 0 开 1 关
+      // electricityRunstatus: function (value) {
+      //     if(value == 0) {
+      //         return 'bottom_img stateimage'
+      //     }else if (value == 1 ||value == null) {
+      //         return 'bottom_img errorimage'
+      //     }
+
+      // },
+      // 风机运行状态（0开；1关）
+      judgeStatus: function (value) {
+        if (value == null || value == '') {
+          return ''
+        } else if (value == 0) {
+          return '开'
+        } else if (value == 1) {
+          return '关'
+        }
+      },
+      // 风机风量（1弱；2强）
+      judgeAirVolume: function (value) {
+        if (value == 1) {
+          return '低速'
+        } else if (value == 2) {
+          return '中速'
+        } else if (value == 3) {
+          return '高速'
+        }
+      },
+      // 模式（1制冷；2制热；3自动）
+      judgeAirMode: function (value) {
+        if (value == 1) {
+          return '制冷'
+        } else if (value == 2) {
+          return '制热'
+        } else if (value == 3) {
+          return '自动'
+        }
+      },
+    }
+  }
+
+</script>
+<style scoped>
+  .control_cv{
+    padding: 0.5% 1% ;
+    border: #ccc 1px dashed;
+    border-radius: 10px;
+  }
+  .control_cv button{
+    margin-left: 20px;
+  }
+  .fan {
+    width: 100%;
+    height: 100%;
+  }
+  .fan-bottom .bottom_button{
+	width: 100%;
+  height: 10%;
+}
+.el-button+.el-button {
+    margin-right: 2%;
+    float: right;
+}
+  .fan .list-visit {
+    width: 90%;
+    height: 53%;
+    margin: 0 auto;
+    margin-top: 3%;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    overflow-y: auto;
+    font-size: 14px;
+  }
+  .fan .list-visit p {
+    height: 20%;
+    margin: 0;
+    line-height: 220%;
+    padding: 0% 4%;
+    /* text-align: center; */
+}
+  .fan .list-visit p:nth-of-type(even) {
+    background-color: #F2F0F1;
+  }
+  .fan .area_tinfo{
+    position: absolute;
+    padding-top: 5%;
+    width: 50%;
+    height: 100%;
+    display: inline-block;
+  }
+  .fan .fenqu{
+    width: 100%;
+    height: 100%;
+    padding:0 1%;
+    overflow: auto;
+  }
+  .fan .single_id{
+    display: inline-block;
+    /* margin: 10% 0 0 0 ; */
+    width: 100%;
+    /* height: 40%; */
+  }
+  .fan .single_name{
+    display: inline-block;
+    width: 100%;
+    margin: 10% 0 0 0 ;
+    /* height: 40%; */
+    /* border: 1px red solid; */
+  }
+  .fan .single_area{
+    border: 1px solid #ccc;
+    border-radius: 5%;
+    margin: 1% 2.4% ;
+    width: 20%;
+    height: 70%;
+    display: inline-block;
+    background-color: #fff;
+  }
+  .fan .area_pic{
+    position: relative;
+    display: inline-block;
+    width: 40%;
+    height: 100%;
+    padding:2% 3%;
+    /* background-image: url("../../../assets/images/222.png");
+    background-repeat: no-repeat;
+    background-size: cover */
+  }
+  .fan .area_pic img{
+    position: absolute;
+
+    width: 76%;
+    height: 80%;
+    cursor: pointer;
+  }
+  .fan .area_top{
+    position: relative;
+    display: inline-block;
+    width: 100%;
+    height: 40%;
+    /* margin: 0 auto; */
+    border-bottom: 1px solid #ccc;
+    /* background-color: #fff; */
+  }
+  .fan-echarts {
+    height: 40%;
+    width: 100%;
+  }
+
+  .fan_input .el-input__inner {
+    text-align: center;
+  }
+
+  .fan .fan_input {
+    position: absolute;
+    right: 5%;
+    z-index: 999;
+  }
+
+  #fan-echart {
+    width: 100%;
+    height: 100%;
+  }
+
+  .fan-lists {
+    margin-top: 1%;
+    height: 54%;
+    width: 100%;
+    border: 2px solid #ccc;
+    border-radius: 10px;
+    padding: 1%;
+  }
+
+  .fan-top {
+    width: 100%;
+    height: 9%;
+  }
+
+  .fan-top-button {
+    width: 100%;
+    height: 100%;
+  }
+
+  .fan-top-button .el-cascader,
+  .fan-top-button .el-button {
+    float: right;
+    margin-right: 10px;
+  }
+
+  /* .fan-top-button .el-select, .fan-top-button .el-button{
+    float: right;
+    margin-right: 10px;
+    height: 70%;
+} */
+  .fan-top-button .el-button {
+    width: 5%;
+  }
+
+  .fan-top-button .el-button--medium {
+    font-size: 0.8vw
+  }
+
+  .fan-top-button .el-select,
+  .fan-top-button .el-select--medium {
+    width: 10%;
+  }
+
+  .fan-top-button .el-select .el-input--medium {
+    font-size: 0.8vw;
+    height: 100%;
+  }
+
+  .fan-top-button .el-select .el-input--medium .el-input__inner {
+    height: 100%;
+  }
+
+  .el-select-dropdown__item {
+    font-size: 0.8vw;
+    height: 1.3vw;
+  }
+
+  .fan-bottom {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    
+  }
+
+  .fan-bootom-list {
+    width: 18%;
+    height: 64%;
+    border: 1px solid #ccc;
+    border-radius: 5%;
+    /* display: table; */
+    float: left;
+    margin-right: 2%;
+    margin-top: 2%
+  }
+
+  .fan-bootom-list:nth-last-child() {
+    margin-right: 0
+  }
+
+  .fan-bootom-list-top {
+    width: 100%;
+    height: 30%;
+    border-bottom: 1px solid #ccc
+  }
+
+  .fan-bootom-list-top .top-img {
+    width: 30%;
+    height: 100%;
+    display: table;
+    float: left;
+    position: relative;
+  }
+
+  .fan-bootom-list-top .top-img img {
+    width: 50%;
+    height: 50%;
+    position: absolute;
+    top: 25%;
+    left: 25%;
+  }
+
+  .fan-bootom-list-top .top-data {
+    width: 70%;
+    height: 100%;
+    display: table;
+    float: left;
+  }
+
+  .fan-bootom-list-top .top-data span {
+    font-size: 0.8vw;
+    display: table-cell;
+    vertical-align: middle
+  }
+
+  .fan-bootom-list-bottom {
+    width: 100%;
+    height: 70%;
+  }
+
+  .fan-bootom-list-bottom .bottom-list {
+    width: 100%;
+    height: 25%;
+  }
+
+  .fan-bootom-list-bottom .bottom-list .bottom-list-img {
+    width: 30%;
+    height: 100%;
+    /* display: table; */
+    float: left;
+    position: relative;
+  }
+
+  .fan-bootom-list-bottom .bottom-list .bottom-list-img img {
+    width: 50%;
+    height: 80%;
+    position: absolute;
+    top: 12%;
+    left: 25%;
+  }
+
+  .fan-bootom-list-bottom .bottom-list .bottom-list-data {
+    width: 70%;
+    height: 100%;
+    display: table;
+    float: left;
+  }
+
+  .fan-bootom-list-bottom .bottom-list .bottom-list-data span {
+    font-size: 0.8vw;
+    display: table-cell;
+    vertical-align: middle
+  }
+
+   .el-dialog {
+    height: 60%;
+    /* width: 40%; */
+  }
+
+   .el-dialog__body {
+    height: 90%;
+  }
+
+  .fan .groupcontrol {
+    height: 100%;
+    border: 1px solid #ccc
+  }
+
+  .fan .groupcontrol-top {
+    height: 45%;
+    overflow-y: auto;
+    padding: 20px;
+    border-bottom: 1px solid #ccc
+  }
+
+  .fan .groupcontrol-top .el-checkbox+.el-checkbox {
+    margin-left: 0;
+    width: 48%;
+  }
+
+  .fan .groupcontrol-top .el-checkbox {
+    width: 48%;
+  }
+
+  .fan .groupcontrol-footer {
+    height: 55%;
+  }
+
+  .fan .groupcontrol-footer-cont {
+    height: 25%;
+    padding-left: 5%;
+    padding-top: 1%
+  }
+
+  .fan .groupcontrol-footer-cont p {
+    margin: 0;
+    font-size: 0.8vw
+  }
+
+  .fan .groupcontrol-footer-cont .el-select {
+    width: 15%;
+    font-size: 0.8vw
+  }
+
+  .fan .groupcontrol-footer-cont .el-button {
+    margin-left: 5%;
+    font-size: 0.8vw
+  }
+
+  .fan .groupcontrol-footer-cont .el-radio__label {
+    font-size: 0.8vw
+  }
+
+  .fan .el-dialog__header {
+    padding: 1vh 1vw
+  }
+
+  .fan .el-dialog__title {
+    font-size: 1vw
+  }
+
+  .fan .el-dialog__headerbtn {
+    font-size: 1vw
+  }
+
+  .fan .el-checkbox__label {
+    /* font-size: 0.8vw */
+    display: inline-block;
+    padding-left: 10px;
+    line-height: 19px;
+    font-size: 14px;
+  }
+
+  .fan .el-checkbox {
+    width: 10%;
+  }
+
+  .fan .el-checkbox+.el-checkbox {
+    margin-left: 0
+  }
+
+  .fan .el-checkbox__inner {
+    width: 0.8vw;
+    height: 0.8vw;
+  }
+
+  .fan .el-checkbox__inner::after {
+    width: 0.2vw;
+    height: 0.4vw;
+    /* top: 1px; */
+    left: 0.2vw;
+  }
+
+  .fan .el-radio__inner {
+    width: 0.8vw;
+    height: 0.8vw;
+  }
+
+  .el-radio__inner::after {
+    width: 0.3vw;
+    height: 0.3vw;
+    top: 49%
+  }
+
+  .groupcontrol-footer .el-input {
+    font-size: 0.8vw
+  }
+
+  .groupcontrol-footer .el-select {
+    height: 50%;
+    margin-top: 1vh
+  }
+
+  .groupcontrol-footer .el-select,
+  .fan-top-button .el-select--medium {
+    width: 12%;
+  }
+
+  .groupcontrol-footer .el-select .el-input--medium {
+    font-size: 0.8vw;
+    height: 100%;
+  }
+
+  .groupcontrol-footer .el-select .el-input .el-input__inner {
+    height: 3vh;
+  }
+
+</style>

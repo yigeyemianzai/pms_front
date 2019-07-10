@@ -1,0 +1,749 @@
+<template>
+  <div id="floor" class="floor">
+    <el-form :inline="true" :model="secrchFloorForm" @keyup.enter.native="getFloorList()" class="device-form">
+      <el-form-item class="device-form-item" >
+        <el-cascader
+          :options="organizationOptions"
+          v-model="secrchFloorForm.orgSelectedOptions"
+          placeholder="选择组织机构"
+          change-on-select
+          @change='changeOrg'
+        ></el-cascader>
+      </el-form-item>
+      <el-form-item class="device-form-item" >
+          <el-select 
+            v-model="secrchFloorForm.stationNameSelectedOptions" 
+            filterable placeholder="选择站点名称"
+            @click.native="getStationNameLists()" 
+            :loading="stationNameLoading">
+            <el-option
+                v-for="item in stationNameOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value">
+            </el-option>
+          </el-select>
+      </el-form-item>
+      <el-form-item class="device-form-item">
+        <el-button type="success" @click="getFloorList('params')">查询</el-button>
+        <el-button v-if="isAuth(OPTAUTH_ADD)" type="primary" @click="editFloor()">新增</el-button>
+        <el-button v-if="isAuth(OPTAUTH_DELETE)" type="danger" @click="deleteFloor()" :disabled="dataListSelections.length <= 0">批量删除</el-button>
+      </el-form-item>
+    </el-form>
+    <el-table
+      :row-style="{height:'36px'}"
+      :row-class-name="tableRowClassNames"
+      :max-height="floorTableHeight"
+      :data="dataSource"
+      border
+      v-loading="dataListLoading"
+      @selection-change="selectionChangeHandle"
+      style="width: 100%;">
+      <el-table-column
+        type="selection"
+        header-align="center"
+        align="center"
+        width="50">       
+      </el-table-column>
+      <el-table-column
+        type="index"
+        header-align="center"
+        align="center"
+        width="100"
+        label="序号">
+      </el-table-column>
+     <!--  <el-table-column
+        prop="floorId"
+        header-align="center"
+        align="center"
+        :show-overflow-tooltip="true"
+        label="楼层（房间）标识">
+      </el-table-column> -->
+      <table-tree-column
+        prop="floorName"
+        treeKey="floorId"
+        header-align="center"
+        @expanded="expandedHandle"
+        label="楼层（房间）名称">
+      </table-tree-column>
+      <el-table-column
+        prop="stationName"
+        header-align="center"
+        align="center"
+        label="站点名称">
+      </el-table-column>
+      <el-table-column
+        :formatter="changeFloorType"
+        prop="floorType"
+        header-align="center"
+        align="center"
+        label="类型">
+      </el-table-column>
+      <el-table-column
+        prop="floorCode"
+        header-align="center"
+        align="center"
+        label="楼层（房间）编号">
+      </el-table-column>
+      <el-table-column
+        fixed="right"
+        header-align="center"
+        align="center"
+        width="150"
+        label="操作">
+        <template slot-scope="scope">
+          <el-button v-if="isAuth(OPTAUTH_UPDATE)" type="text" size="small" @click="editFloor(scope.row)"><i class="el-icon-edit-outline istyle"></i></el-button>
+          <el-button v-if="isAuth(OPTAUTH_DELETE)" type="text" size="small" @click="deleteFloor(scope.row)"><i class="el-icon-delete istyle"></i></el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+    <!-- <tree-grid
+      :treeStructure="true"
+      :columns="columns"
+      :data-source="dataSource"
+      @deleteRow="deleteFloor"
+      @changeHandle="editFloor"
+      @selection="selectionChangeHandle"
+    >
+    </tree-grid> -->
+    <el-pagination
+      @size-change="sizeChangeHandle"
+      @current-change="currentChangeHandle"
+      :current-page="pageIndex"
+      :page-sizes="[10, 20, 50, 100]"
+      :page-size="pageSize"
+      :total="totalPage"
+      layout="total, sizes, prev, pager, next, jumper">
+    </el-pagination>
+    <!-- 弹窗, 新增 / 修改 -->
+    <el-dialog
+      :title="dialogTitle == undefined ? '新  增' : '修  改'"
+      :close-on-click-modal="false"
+      :visible.sync="addOrUpdateVisible"
+      center="center"
+      width="27.66%"
+      class="rdialog">
+      <el-form :model="setFloorDataForm" @keyup.enter.native="floorDataFormSubmit()" class="rel-form" :rules="floorDataFormSetRule" ref="setFloorDataForm">
+        <el-form-item class="rel-form-item" label="组织机构" prop="setOrganizationOptions">
+          <el-cascader
+            :options="organizationOptions"
+            v-model="setFloorDataForm.setOrganizationOptions"
+            change-on-select
+          ></el-cascader>
+        </el-form-item>
+        <el-form-item class="rel-form-item" label="站点名称" prop="stationName">
+          <el-select v-model="setFloorDataForm.stationName" :disabled="isStationNameDisabled" @click.native="getStationNameLists('params')">
+            <el-option
+              v-for="item in stationNameOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value">
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item class="rel-form-item" label="类型" prop="floorType">
+          <el-select v-model="setFloorDataForm.floorType" :disabled='isDisabled'>
+            <el-option
+              v-for="item in floorTypeOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value">
+            </el-option>
+          </el-select>  
+        </el-form-item>
+        <el-form-item class="rel-form-item" label="楼层/房间编号" prop="floorCode">
+          <el-input v-model="setFloorDataForm.floorCode" :disabled="setFloorDataForm.floorType === null"></el-input>
+        </el-form-item>
+        <el-form-item class="rel-form-item" label="楼层/房间名称" prop="floorName">
+          <el-input v-model="setFloorDataForm.floorName" :disabled="setFloorDataForm.floorType === null"></el-input>
+        </el-form-item>
+        <el-form-item class="rel-form-item" label="所属楼层" prop="floorId">
+          <el-select v-model="setFloorDataForm.floorId" :disabled="setFloorDataForm.floorType === '1' || setFloorDataForm.floorType === null" @click.native="getFloorCode()">
+            <el-option
+              v-for="item in floorCodeOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value">
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <!-- <el-form-item class="set-device-form-item" label="房间名称"  prop="roomName">
+          <el-input v-model="setFloorDataForm.roomName" :disabled="setFloorDataForm.floorType === '1' || setFloorDataForm.floorType === ''"></el-input>
+        </el-form-item> -->
+      </el-form>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="addOrUpdateVisible = false">取消</el-button>
+        <el-button type="primary" @click="floorDataFormSubmit(setFloorDataForm)">确定</el-button>
+      </span>
+    </el-dialog>
+  </div>
+</template>
+<script>
+import TableTreeColumn from '@/components/table-tree-column'
+import MSDataTransfer from '@/utils/dataTranslate.js'
+export default {
+  data () {
+    return {
+      isStationNameDisabled: true,
+      // 限制设置页面，先选择站点才可以新增房间或楼层
+      isDisabled: true,
+      // 表格高度
+      floorTableHeight: '',
+      // 站点ID下拉框
+      stationNameOptions: [{
+        label: '站点1',
+        value: '1'
+      }, {
+        label: '站点2',
+        value: '2'
+      }],
+      // 所属楼层信息
+      floorCodeOptions: [],
+      // 类型
+      floorTypeOptions: [{
+          label: '楼层',
+          value: '1'
+        },{
+          label: '房间',
+          value: '2'
+      }],
+      // 增加、修改页面表单
+      setFloorDataForm: {
+        setOrganizationOptions: [],
+        stationName: null,
+        floorType: null,
+        floorCode: null,
+        floorName: null,
+        floorId: null,
+        saveFloorId: null
+      },
+      floorDataFormSetRule: {
+        setOrganizationOptions: [{ required: true, message: '组织机构不能为空', trigger: 'blur' }],
+        stationName: [{ required: true, message: '站点不能为空', trigger: 'blur' }],
+        floorCode: [ { require:true, message: '楼层编号不能为空', trigger: 'blur' }],
+        floorName: [{ required: true, message: '楼层名称不能为空', trigger: 'blur' }],
+        floorId: [{ required: true, message: '所属楼层不能为空', trigger: 'blur' }],
+        roomName: [{ required: true, message: '房间名称不能为空', trigger: 'blur' }],
+        floorType: [{ required: true, message: '类型不能为空', trigger: 'blur' }]
+      },
+      // 搜索表单 分别为已选组织机构 站点名称
+      secrchFloorForm: {
+        orgSelectedOptions: [],
+        stationNameSelectedOptions: null
+      },
+      // 区分是新增还是修改页面
+      dialogTitle: null,
+      // 组织机构列表
+      organizationOptions: [],
+      stationNameLoading: true,
+      // 当前页
+      pageIndex: 1,
+      // 分页大小
+      pageSize: 10,
+      // 总记录数
+      totalPage: 2,
+      // 多选数组
+      dataListSelections: [],
+      addOrUpdateVisible: false,
+      dataSource: [],
+      dataListLoading: false
+    }
+  },
+  created () {
+    this.floorTableHeight = window.innerHeight-320
+  },  
+  components: {
+    TableTreeColumn
+  },
+  mounted () {
+    this.getOrgLists()
+    this.$http({
+      url: this.$http.adornUrl('/admin/tstation/station'),
+      method: 'post',
+      data: this.$http.adornParams({
+        orgId: JSON.parse(window.sessionStorage.getItem('userInfo')).orgId
+      })
+    }).then(({data}) => {
+      if (data && data.code === 0) {
+        this.stationNameOptions = data.list
+        this.stationNameLoading = false
+        if(data.list.length > 0) {
+          this.secrchFloorForm.stationNameSelectedOptions = data.list[0].value
+        }        
+        this.$options.methods.getFloorList.bind(this)()
+      }
+    })  
+    // document.getElementById('floor').style.height = (window.innerHeight-170)+'px'
+    window.onresize = function () {
+      if(document.getElementById('floor')){
+        this.floorTableHeight = window.innerHeight-320
+      }
+    }
+  },
+  watch: {
+    'setFloorDataForm.floorType': function (val) {
+      if(val === '1') {
+        this.floorDataFormSetRule.floorId= [{ required: false, message: '', trigger: 'blur' }]
+        this.floorDataFormSetRule.roomName = [{ required: false, message: '', trigger: 'blur' }]
+        this.floorDataFormSetRule.floorCode = [ { required: true, message: '楼层编号不能为空', trigger: 'blur' }]
+        this.floorDataFormSetRule.floorName = [{ required: true, message: '楼层名称不能为空', trigger: 'blur' }]
+      }else if(val === '2') {
+        // console.log(1)
+        this.floorDataFormSetRule.floorId= [{ required: true, message: '所属楼层不能为空', trigger: 'blur' }]
+        this.floorDataFormSetRule.roomName = [{ required: true, message: '房间名称不能为空', trigger: 'blur' }]
+        this.floorDataFormSetRule.floorCode = [ { required: false, message: '', trigger: 'blur' }]
+        this.floorDataFormSetRule.floorName = [{ required: false, message: '', trigger: 'blur' }]
+      }
+    },
+    // 监听配置页面是否已选择站点
+    'setFloorDataForm.stationName': function (val) {
+      // console.log(val)
+      if(val !== null && this.dialogTitle === undefined) {
+        this.isDisabled = false
+      } else {
+        this.isDisabled = true
+      }
+    },
+    // 监听配置页面是否已选择组织机构
+    'setFloorDataForm.setOrganizationOptions': function (val) {
+      if(val.length !== 0) {
+        this.isStationNameDisabled = false
+      } else {
+        this.isStationNameDisabled = true
+      }
+    }
+  },
+  methods: {
+    expandedHandle (index, row, expanded) {
+        this.selectIndex = index
+        if(expanded){
+          this.getFloorList(row.resId, row.level)
+        }else{
+          this.dataList = this.removeChildNode(this.dataList,row.resId)
+        }
+      },
+      // 移除子节点
+      removeChildNode (data, parentId) {
+        var parentIds = isArray(parentId) ? parentId : [parentId]
+        if (parentIds.length <= 0) {
+          return data
+        }
+        var ids = []
+        for (var i = 0; i < data.length; i++) {
+          if (parentIds.indexOf(data[i].parentId) !== -1 && parentIds.indexOf(data[i].resId) === -1) {
+            ids.push(data.splice(i, 1)[0].resId)
+            i--
+          }
+        }
+        return this.removeChildNode(data, ids)
+      },
+    // 监听组织机构选框修改，清除站点选框内容
+    changeOrg () {
+      this.secrchFloorForm.stationNameSelectedOptions = ''
+    },
+    // 提交修改配置页面信息
+    floorDataFormSubmit (setFloorDataForm) {
+      // console.log('add', setFloorDataForm)
+      this.$refs['setFloorDataForm'].validate((valid) => {
+        if (valid) {
+          this.$confirm(`确定提交?`, '提示', {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning'
+          }).then(() => {
+            this.$http({
+              url: this.$http.adornUrl(`/admin/tfloor/${this.dialogTitle == undefined ? 'save' : 'update'}`),
+              method: 'post',
+              data: this.$http.adornData({
+                stationId: setFloorDataForm.stationName,
+                floorType: setFloorDataForm.floorType,
+                floorCode: setFloorDataForm.floorCode,
+                floorName: setFloorDataForm.floorName,
+                parentId: setFloorDataForm.floorId,
+                floorId: setFloorDataForm.saveFloorId
+              })
+            }).then(({data}) => {
+              if (data && data.code === 0) {
+                this.addOrUpdateVisible = false
+                    this.$refs['setFloorDataForm'].resetFields()
+                    this.$options.methods.getFloorList.bind(this)()
+                this.$message({
+                  message: '操作成功',
+                  type: 'success',
+                  duration: 1500,
+                  onClose: () => {
+                    
+                    /* if(this.dialogTitle == undefined) {
+                      this.dataSource.unshift(data.entity)
+                    } else {
+                      for(let i=0;i<this.dataSource.length;i++) {
+                        if(this.dataSource[i].floorId == data.list[0].floorId) {
+                          this.dataSource[i].children = data.list[0].children
+                          this.dataSource[i].floorCode = data.list[0].floorCode
+                          this.dataSource[i].floorId = data.list[0].floorId
+                          this.dataSource[i].floorName = data.list[0].floorName
+                          this.dataSource[i].floorType = data.list[0].floorType
+                          this.dataSource[i].isLeaf = data.list[0].isLeaf
+                          this.dataSource[i].orgId = data.list[0].orgId
+                          this.dataSource[i].parentId = data.list[0].parentId
+                          this.dataSource[i].stationId = data.list[0].stationId
+                        } else {
+                          if (this.dataSource[i].children != null) {
+                            for(let j=0;j<this.dataSource[i].children.length;j++) {
+                              if(this.dataSource[i].children[j].floorId == data.list[0].floorId) {
+                                console.log(this.dataSource[i].children[j])
+                                this.dataSource[i].children[j].children = data.list[0].children
+                                this.dataSource[i].children[j].floorCode = data.list[0].floorCode
+                                this.dataSource[i].children[j].floorId = data.list[0].floorId
+                                this.dataSource[i].children[j].floorName = data.list[0].floorName
+                                this.dataSource[i].children[j].floorType = data.list[0].floorType
+                                this.dataSource[i].children[j].isLeaf = data.list[0].isLeaf
+                                this.dataSource[i].children[j].orgId = data.list[0].orgId
+                                this.dataSource[i].children[j].parentId = data.list[0].parentId
+                                this.dataSource[i].children[j].stationId = data.list[0].stationId
+                              }
+                            }
+                          }
+                          
+                        }
+                      }
+                    } */
+                    
+                  }
+                })
+              } else {
+                this.$message.error(data.msg)
+              }
+            })
+          })
+        } else {
+          console.log('error submit!!')
+          return false;
+        }
+      })
+    },
+    // 删除/批量删除
+    deleteFloor (row) {
+      let cid
+      if(row) {
+        cid = row.floorId
+      }     
+      var floorId = cid ? [cid] : this.dataListSelections.map(item => {
+        return item.floorId
+      })
+      this.$confirm('确定删除操作?', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(() => {
+        // console.log('删除', floorId)
+        this.$http({
+          url: this.$http.adornUrl('/admin/tfloor/delete'),
+          method: 'post',
+          data: this.$http.adornData(floorId, false)
+        }).then(({data}) => {
+          if (data && data.code === 0) {
+                this.getFloorList()
+            this.$message({
+              message: '操作成功',
+              type: 'success',
+              duration: 1500,
+              onClose: () => {
+              }
+            })
+          } else {
+            this.$message.error(data.msg)
+          }
+        })
+      }).catch(() => {})
+    },
+    // 新增 / 修改
+    editFloor (row) {      
+      this.addOrUpdateVisible = true
+      this.$nextTick(function () {
+        this.$refs['setFloorDataForm'].resetFields()
+      })
+      if(row) {
+        this.isDisabled = true
+        this.$options.methods.getFloorCode.bind(this)(row.stationId.toString())
+        this.$http({
+          url: this.$http.adornUrl('/admin/tstation/orgName'),
+          method: 'post',
+          data: this.$http.adornData({
+            orgId: row.orgId
+          })
+        }).then(({data}) => {
+          if (data && data.code === 0) {
+            this.setFloorDataForm.setOrganizationOptions = data.list
+          }else {
+            this.setFloorDataForm.setOrganizationOptions = []
+          }
+        }) 
+        this.$http({
+          url: this.$http.adornUrl(`/admin/tfloor/info/${row.floorId}`),
+          method: 'get',
+          params: this.$http.adornParams()
+        }).then(({
+          data
+        }) => {
+          this.dialogTitle = data.tFloor.floorId
+          this.setFloorDataForm.stationName = data.tFloor.stationId.toString()
+          this.setFloorDataForm.floorType = data.tFloor.floorType.toString()
+          this.setFloorDataForm.floorName = data.tFloor.floorName
+          this.setFloorDataForm.floorId = data.tFloor.parentId === -1 ? null : data.tFloor.parentId.toString()
+          this.setFloorDataForm.floorCode = data.tFloor.floorCode
+          this.setFloorDataForm.saveFloorId = data.tFloor.floorId
+        })   
+        /* this.$nextTick(function () {
+          this.dialogTitle = row.floorId
+          this.setFloorDataForm.stationName = row.stationId.toString()
+          this.setFloorDataForm.floorType = row.floorType.toString()
+          this.setFloorDataForm.floorName = row.floorName
+          this.setFloorDataForm.floorId = row.parentId === -1 ? null : row.parentId.toString()
+          this.setFloorDataForm.floorCode = row.floorCode
+          this.setFloorDataForm.saveFloorId = row.floorId
+        })   */      
+      }else {
+        this.dialogTitle = row
+      }
+    },
+    // 获取组织机构数据
+    getOrgLists () {
+      this.$http({
+        url: this.$http.adornUrl('/admin/tstation/org'),
+        method: 'post',
+        params: this.$http.adornParams({})
+      }).then(({data}) => {
+        if (data && data.code === 0) {
+          this.organizationOptions = data.list
+          if(this.secrchFloorForm.orgSelectedOptions.length === 0) {
+            this.secrchFloorForm.orgSelectedOptions = JSON.parse(window.sessionStorage.getItem('userInfo')).orgId.split()
+          }          
+        }
+      })      
+    },
+    // 获取站点名称下拉框数据
+    getStationNameLists (params) {
+      this.stationNameOptions = []
+      var orgId = null
+      if(this.dialogTitle == null && !params) {
+        orgId = this.secrchFloorForm.orgSelectedOptions.length !== 0 ? this.secrchFloorForm.orgSelectedOptions[this.secrchFloorForm.orgSelectedOptions.length-1] : JSON.parse(window.sessionStorage.getItem('userInfo')).orgId
+      } else {
+        orgId = this.setFloorDataForm.setOrganizationOptions.length !== 0 ? this.setFloorDataForm.setOrganizationOptions[this.setFloorDataForm.setOrganizationOptions.length-1] : null
+      }
+      this.$http({
+        url: this.$http.adornUrl('/admin/tstation/station'),
+        method: 'post',
+        data: this.$http.adornParams({
+          orgId: orgId
+        })
+      }).then(({data}) => {
+        if (data && data.code === 0) {
+          this.stationNameOptions = data.list
+          this.stationNameLoading = false
+          // if(this.secrchFloorForm.stationNameSelectedOptions.length === 0) {
+          //   this.secrchFloorForm.stationNameSelectedOptions = data.list[0].value
+          // }
+          // 修改房间时，改变站点，清空所属楼层信息
+          this.setFloorDataForm.floorId = null   
+        }
+      })   
+    },
+    // 获取数据列表
+    getFloorList (params, lv = null) {
+      if(params){
+          this.pageIndex=1
+        }
+      if(this.secrchFloorForm.stationNameSelectedOptions === '') {
+        this.$message({
+          message: '请选择站点',
+          type: 'error',
+          duration: 1500,
+        })
+      }else {
+        this.dataListLoading = true
+        this.$http({
+          url: this.$http.adornUrl('/admin/tfloor/list'),
+          method: 'post',
+          data: this.$http.adornParams({
+            'orgId': this.secrchFloorForm.orgSelectedOptions.length == 0 ? JSON.parse(window.sessionStorage.getItem('userInfo')).orgId : this.secrchFloorForm.orgSelectedOptions[this.secrchFloorForm.orgSelectedOptions.length -1],
+            'stationId': this.secrchFloorForm.stationNameSelectedOptions,
+            'page': this.pageIndex.toString(), // 当前页数
+            'limit': this.pageSize.toString(), // 	每页记录数
+            'level': lv == null ? null : lv.toString()
+          })
+        }).then(({data}) => {
+          if (data && data.code === 0) {
+            // this.dataSource = data.list
+            this.dataSource = MSDataTransfer.treeToArray(data.page.list, null, null, true)
+            this.totalPage = data.page.totalCount
+            this.pageIndex = data.page.currPage
+            this.pageSize = data.page.pageSize
+          } else {
+            this.dataSource = []
+            this.totalPage = 0
+          }
+          this.dataListLoading = false
+        })
+      }      
+    },
+    // 每页数
+    sizeChangeHandle (val) {
+      this.pageSize = val
+      this.pageIndex = 1
+      this.$options.methods.getFloorList.bind(this)()
+    },
+    // 当前页
+    currentChangeHandle (val) {
+      this.pageIndex = val
+      this.$options.methods.getFloorList.bind(this)()
+    },
+    // 多选
+    selectionChangeHandle (val) {
+      this.dataListSelections = val
+    },
+    // 获取楼层信息
+    getFloorCode (stationId) {
+      this.$http({
+        url: this.$http.adornUrl('/admin/tfloor/floorName'),
+        method: 'post',
+        data: this.$http.adornParams({
+          "stationId": stationId ? stationId : this.setFloorDataForm.stationName.toString()
+        })
+      }).then(({data}) => {
+        if (data && data.code === 0) {
+          this.floorCodeOptions = data.list
+        }
+      })      
+    },
+    // 类型转换
+    changeFloorType(cellValue) {
+      if(cellValue.floorType === 1){
+        return '楼层'
+      }else if(cellValue.floorType === 2){
+        return '房间'
+      }
+    },
+    // 行颜色
+    /* tableRowClassNames({row, rowIndex}) {
+      if (row.parentId === -1) {
+        return 'first-row';
+      } else if (row.parentId != -1) {
+        return 'detail-row';
+      }
+      return '';
+    }, */
+  }
+}
+</script>
+<style scoped>
+/* 搜索条件栏样式开始 */
+.device-form {
+  /* background-color: #eef4fa; */
+  border-radius: 5px 5px 0 0 ;
+  /* margin-bottom: 10px; */
+  height: 80px;
+  width: 100%;
+  padding: 0 10px 0 10px;
+  display: flex;
+  align-items: center;
+  text-align: justify
+}
+.device-form-item {
+  margin-bottom: 0;
+  /* flex: 1 */
+}
+.device-form-item a, .set-device-form-item a {
+  font-weight: 600;
+  font-size: 15px
+}
+/* 搜索条件栏样式结束 */
+
+/* 表格样式开始 */
+/* .floor >>> .el-table .first-row {
+  background: #fff;
+}
+
+.floor >>> .el-table .detail-row {
+  background: #eef4fa;
+} */
+/* 表格样式结束 */
+
+/* 增加修改配置页面样式开始 */
+.set-device-form {
+  background-color: #eef4fa;
+  border-radius: 5px;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 20px 0 0 0;
+  /* height: 100%;
+  overflow-y: auto */
+}
+.set-device-form-item >>> .el-form-item__content {
+  width: 50%;
+  display: flex;
+  flex-direction: row;
+}
+.set-device-form-item >>> .el-form-item__label {
+  min-width: 180px
+}
+/* .set-device-form-item a {
+  flex: 1;
+  min-width: 160px;
+  text-decoration: none
+} */
+.set-device-form-item >>> .el-select, .set-device-form-item >>> .el-cascader, .set-device-form-item >>> .el-input, .set-device-form-item >>> .el-input-number {
+  flex: 2
+}
+
+.set-floortype-form {
+  display: flex;
+  flex-direction: column;
+  padding: 20px 0 0 0;
+  background-color: #DCDFE6
+}
+.set-floortype-form-item >>> .el-form-item__content{
+  width: 50%;
+  display: flex;
+  flex-direction: row;
+}
+.set-floortype-form-item >>> .el-form-item__label {
+  min-width: 150px
+}
+/* .set-floortype-form-item a {
+  flex: 1;
+  min-width: 150px;
+  text-decoration: none;
+  margin-bottom: 1%;
+  font-weight: 700
+} */
+.set-floortype-form-item >>> .el-select,  .set-floortype-form-item >>> .el-input{
+  flex: 3;
+  margin-bottom: 1%
+}
+/* 增加修改配置页面样式结束 */
+
+/* .istyle{
+  font-size: 18px;
+  font-weight: 500;
+  color: #3397ff
+}
+.floor >>> .el-pager li.active {
+  background-color: #33a7fe;
+  color: #fff;
+  font-size: 16px;
+  border-radius: 100%
+}
+.floor >>> .el-pager li {
+  min-width: 30px;
+  height: 25px;
+  line-height: 25px
+} */
+/* .floor >>> .el-table td, .floor >>> .el-table th {
+  padding: 0
+} */
+</style>
+<style lang="scss" scoped>
+@import "../../../../assets/scss/_dialog.scss"
+</style>

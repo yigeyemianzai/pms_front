@@ -1,0 +1,1250 @@
+<template>
+  <div id="sockets" class="sockets">
+    <el-row class="socket-top">
+      <el-col :xl="13" :lg="13" :md="13" :sm="13" :xs="13" class="top-left">
+        <div class="top-echarts">
+          <div class="top-echarts-title">
+            <span>插座系统实时负荷</span>
+            <div class="top-echarts-date">
+              <el-date-picker v-model="value" type="date" placeholder="选择日期" format="yyyy-MM-dd" value-format="yyyy-MM-dd"
+                :picker-options="pickerOptions">
+              </el-date-picker>
+            </div>           
+          </div>
+          <div class="top-echarts-echart" id="echarts" ></div>
+        </div>          
+      </el-col>
+      <el-col :xl="5" :lg="5" :md="5" :sm="5" :xs="5" class="top-center">          
+          <div class="top-pie">
+            <div class="top-echarts-title">设备运行状态</div>
+            <div class="top-piechart" id="pie"></div>
+          </div>
+      </el-col>
+      <el-col :xl="6" :lg="6" :md="6" :sm="6" :xs="6" class="top-right">
+        <div class="top-ranking">
+          <div class="top-echarts-title">今日总能耗Top5</div>
+          <div class="top-list">
+            <div class="top-list-data">
+              <p>今日总能耗: <span>{{totalData}}kWh</span></p>
+            </div>
+            <div class="top-list-data" v-for="(item,index) in topData" :key="index" > 
+              <p>{{item.name}}</p>
+              <el-progress :percentage="parseInt(item.per)" :text-inside="true" color="#ffc600" :stroke-width='18'></el-progress>
+              <p class="listdata">{{item.value}}kWh</p>
+            </div>
+          </div>
+        </div>
+      </el-col>
+    </el-row>
+    <el-row class="socket-bottom">
+      <div class="socket-bottom-search">
+        <div class="search">
+          <div style="display:inline-block">
+            <el-input placeholder="请输入大楼名称" v-model="input5" class="input-with-select" clearable>
+              <el-button slot="append" icon="el-icon-search" @click="list()"></el-button>
+            </el-input>
+          </div>
+          <div style="float:right;display:inline-block;padding-right:20px;">
+            <el-button @click="goToTopo()" type="success" plain v-if="isAuth(SCOKET_DZSET)">拓扑图</el-button>
+            <el-button @click="goToVersionUpdate()" type="warning" plain v-if="isAuth(SCOKET_DZSET)">版本更新</el-button>
+          </div>      
+        </div>            
+      </div>
+      <div class="socket-bottom-data">
+        <div class="cz_data">
+          <div class="sockets-list" v-for="(item,index) in items " :key="item.id ">
+            <div class="sockets_list-title">
+              <div class="socket_img" v-if="isAuth(OPTAUTH_QUERY)" @click="goToFloor(item.equipId,item.name)"><!-- <img src="~@/assets/images/pic11.png" @click="goToFloor()" style="width: 2.8vw"/> --></div>
+              <div class="socket_img" v-else></div>
+              <div style="display:flex;flex:1;font-size:0.8vw"><p style="display:inline">{{item.name}}</p></div>
+              <div style="display:flex;width:30%;min-width:80px">
+                <!-- <socket-switch
+                :onId="'on'+ item.equipId"
+                :offId="'off'+ item.equipId"
+                :item='item'
+                @turnOn='turnOn'
+                ></socket-switch> -->
+                <div class="sockets_btn" v-if="isAuth(SCOKET_ONOFF)">
+                  <div class="socket_on"  @click="turnOn('1',item.equipId)"></div>
+                  <div class="socket_off"  @click="turnOn('0',item.equipId)"></div>
+                  <!-- <img :src="item.runStatus == 1?'./static/img/on1.png':'./static/img/on2.png'" />
+                  <img :src="item.runStatus == 1?'./static/img/off2.png':'./static/img/off1.png'" />  -->
+                </div>
+              </div>
+            </div>
+            <div class="list-text">
+            </div>
+            <div class="list-visit" >
+              <div>
+                <div class="list-visit-name">设备总数：</div>
+                <div class="list-visit-value">{{item.total}}</div>
+                <div class="list-visit-unit">台</div>
+              </div>
+              <div>
+                <div class="list-visit-name">设备运行数量：</div>
+                <div class="list-visit-value">{{item.useCount}}</div>
+                <div class="list-visit-unit">台</div>
+              </div>
+              <div>
+                <div class="list-visit-name">设备空闲数量：</div>
+                <div class="list-visit-value">{{item.freeCount}}</div>
+                <div class="list-visit-unit">台</div>
+              </div>
+              <div>
+                <div class="list-visit-name">设备故障数量：</div>
+                <div class="list-visit-value">{{item.breakCount}}</div>
+                <div class="list-visit-unit">台</div>
+              </div>
+              <div>
+                <div class="list-visit-name">运行负荷：</div>
+                <div class="list-visit-value">{{item.load}}</div>
+                <div class="list-visit-unit">kW</div>
+              </div>
+              <div>
+                <div class="list-visit-name">今日总用电：</div>
+                <div class="list-visit-value">{{item.elePower}}</div>
+                <div class="list-visit-unit">kWh</div>
+              </div>
+              <!-- <div v-for="(one,index) in item.points"  :key="one.index" :class="index%2==0?'':'list-color'">
+                <div class="list-visit-name">{{item.points[index].anme}}：</div>
+                <div class="list-visit-value">{{item.points[index].value}}</div>
+                <div class="list-visit-unit">{{item.points[index].unit}}</div>
+              </div> -->
+              <!-- <p v-for="(one,index) in item.points"  :key="one.index" :class="index%2==0?'':'list-color'">
+                <span>{{item.points[index].anme}}:{{item.points[index].value}}{{item.points[index].unit}}</span>
+              </p>  -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </el-row>
+    <el-dialog title="执行结果"
+      :close-on-click-modal="false" ref="result" :visible.sync="visible" >
+      <el-table :data="dataList"  v-loading="dataListLoading" 
+      :header-cell-style="{background:'#edeef0',color:'#000',fontWeight:'700'}">
+      <el-table-column type="index" header-align="center" align="center" width="50" label="序号" fixed="left">
+      </el-table-column>
+      <el-table-column prop="floorName" header-align="center" align="center" label="房间" >
+      </el-table-column>
+      <el-table-column prop="equipName" header-align="center" align="center" label="插座名称" >
+      </el-table-column>
+      <el-table-column prop="runStatus" header-align="center" align="center" label="开关状态" >
+          <template slot-scope="scope">
+              <el-tag v-if="scope.row.runStatus == 0" size="small" type="danger">关</el-tag>
+              <el-tag v-else-if="scope.row.runStatus == 1" size="small">开</el-tag>
+            </template>
+      </el-table-column>
+      <el-table-column prop="executeStatus" header-align="center" align="center" label="执行状态" >
+          <template slot-scope="scope">
+              <i class="execute" v-if="scope.row.executeStatus == 0" ></i>
+              <i class="success" v-else-if="scope.row.executeStatus == 1"></i>
+              <i class="fail" v-else-if="scope.row.executeStatus == 2"  ></i>
+            </template>
+      </el-table-column>
+      </el-table>
+      </el-dialog>
+  </div>
+</template>
+
+<script>
+  import { dateFormatter} from '@/utils/index'
+  // import SocketSwitch from '@/components/socket-onoff'
+  export default {
+    data() {
+      return {
+        dataList:[],
+        visible:false,//执行结果弹出框显示隐藏
+        dataListLoading : false,//执行结果加载
+        value: dateFormatter(new Date(), false),  // 实时负荷日期选择值
+        pickerOptions: {
+          disabledDate(time) {
+            return time.getTime() > Date.now() - 8.64e6
+          }
+        },
+        buildListWs: null, // 大楼信息列表websocket
+        buildWs: null, // 实时负荷折线图websocket
+        ws2:null,//控制执行结果websocket
+        totalData: null, // 今日总用电Top5--今日总耗电
+        topData: [], // 今日总用电Top5--排行
+        input5: '', // 搜索框信息
+        items: [], // 大楼信息列表
+        // info:'',
+        // flag:false,
+        // value:dateFormatter(new Date(), false),
+         // 设置选择今天及以前的时间
+        /* pickerOptions: {
+          disabledDate(time) {
+            return time.getTime() > Date.now() - 8.64e6
+          }
+        }, */
+      }
+    },
+    components: {
+      // SocketSwitch
+    },
+    mounted() {
+      this.aaa()
+      this.list()
+      this.initEcharts()
+      // this.cz_info()
+      this.initPie()
+      this.getTop()
+      window.onresize = function () {
+        if(document.getElementById('sockets')){
+          document.getElementById('sockets').style.height = (window.innerHeight - 170) + 'px'
+          echarts.init(document.getElementById('echarts')).resize()
+          echarts.init(document.getElementById('pie')).resize()
+            // electricity 
+        }
+      }
+    },
+    watch: {
+        'value': 'pickDate',
+    },
+    methods: {
+      // 拓扑图按钮
+      goToTopo () {
+        this.$router.push({path:'/equipment-monitor-equipment-topology',query:{}})
+      },
+      // 版本更新按钮
+      goToVersionUpdate () {
+        this.$router.push({path:'/equipment-monitor-version-update',query:{}})
+      },
+      pickDate(val){
+        let _this = this
+        this.initEcharts()
+      },
+      turnOn (runStatus,equipId) {
+        let _this = this
+        // if(runStatus == 0 || runStatus == 2) {
+          this.$confirm('是否继续?', '提示', {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning'
+          }).then(() => {
+            this.dataListLoading=true
+            let arr = []
+            arr.push(equipId)
+            this.$http({
+              url: this.$http.adornUrl('/admin/tequipoutlet/control/station'),
+              method: 'post',
+              data: this.$http.adornData({
+                // 'id': JSON.parse(window.sessionStorage.getItem('userInfo')).orgId,  // 组织机构ID
+                // 'type': '1',
+                'runStatus': runStatus, // 1 开 0 关
+                'stationId': equipId.toString()
+              }),
+            }).then(({ data }) => {
+              if (data && data.code === 0) {
+                this.visible = true
+                this.dataList = data.data
+                this.dataListLoading =false
+                this.dataList.map(e=>{
+                  e.runStatus = runStatus
+                  e.executeStatus =1
+                })
+                // websocket
+                // let token = this.$cookie.get('token')
+                //   let arr = []
+                //     for (let i=0;i<data.data.length;i++) {
+                //         arr.push(data.data[i].id)
+                //     }
+                //   // _this.ws2 = new WebSocket("ws://123.207.167.163:9010/ajaxchattest")
+                //  _this.ws2 = new WebSocket(window.SITE_CONFIG.wsBaseUrl+ token + '/' + "outlet" + "/" + "execute")
+
+
+                // //心跳
+                // _this.ws2.last_health_time = -1; // 上一次心跳时间, -1代表还没有发过心跳
+                // _this.ws2.keepalive = function() {
+                //     let time = new Date().getTime();
+                //     if( _this.ws2.last_health_time !== -1 && (time -  _this.ws2.last_health_time) > 25000) { // 不是刚开始连接并且超过25s没有心跳
+                    
+                //         _this.ws2.close()
+                //     } else { 
+                //         // 如果断网了，ws.send会无法发送消息出去。ws.bufferedAmount不会为0。
+                //         if( _this.ws2.bufferedAmount === 0 &&  _this.ws2.readyState === 1) { 
+                //             _this.ws2.send('ping');
+                //             _this.ws2.last_health_time = time;
+                //         }
+                //     }
+                // }
+
+                // let reconnect = 0; //重连的时间
+                // let reconnectMark = false; //是否重连过
+
+                //   // 建立 web socket 连接成功触发事件                   
+                //     _this.ws2.onopen = function () {
+                //         // console.log("open ...")
+                //     // 使用 send() 方法发送数据
+                //         _this.ws2.send(arr)
+
+                        
+                //         reconnect = 0;
+                //         reconnectMark = false;
+                //         _this.ws2.receiveMessageTimer = setTimeout(() => {
+                //             _this.ws2.close();
+                //         }, 45000); // 45s没收到信息，代表服务器出问题了，关闭连接。如果收到消息了，重置该定时器。
+                //         if( _this.ws2.readyState === 1) { // 为1表示连接处于open状态
+                //             _this.ws2.keepAliveTimer = setInterval(() => {
+                //                 _this.ws2.keepalive();
+                //             }, 20000)
+                //         }
+                //     }
+                //     // WebSocket连接发生错误
+                //     _this.ws2.onerror = function (evt) {
+                //         // console.log("WebSocket连接发生错误")
+                //     }
+                //     // 接收服务端数据时触发事件
+                //     _this.ws2.onmessage = function (evt) {
+                //       if((evt.data)!="pong"){
+                //         let receive = JSON.parse(evt.data)
+                //         // let receive = {"id":"100004000994001",value:"0"}
+                //         // console.log(_this.savemachine)
+                //          _this.dataList.map(e=>{
+                //           // console.log('abc')
+                //             if(e.id == receive.id){
+                //                 e.runStatus = receive.value
+                //                 // if(receive.value!=2){
+                //                   e.executeStatus =1
+                //                 // }
+                //             }
+                //         })
+                    
+                //       }
+                //       // console.log( _this.ws2.receiveMessageTimer)
+
+                //         clearTimeout( _this.ws2.receiveMessageTimer); 
+                //         // console.log( _this.ws2.receiveMessageTimer)
+                //         _this.ws2.receiveMessageTimer = setTimeout(() => {
+                //             _this.ws2.close();
+                //         }, 45000); // 45s没收到信息，代表服务器出问题了，关闭连接。
+
+                //     }
+                //     // 断开 web socket 连接成功触发事件
+                //      _this.ws2.onclose = function () {
+                //         clearTimeout(_this.ws2.receiveMessageTimer);
+                //         clearInterval(_this.ws2.keepAliveTimer);
+                //         if(!reconnectMark) { // 如果没有重连过，进行重连。
+                //         reconnect = new Date().getTime();
+                //         reconnectMark = true;
+                //         }
+                //         let tempWs = _this.ws2; // 保存ws对象
+                //         if(new Date().getTime() - reconnect >= 10000) { // 10秒中重连，连不上就不连了
+                //             _this.ws2.close();
+                //         } else {                           
+                //             _this.ws2.onopen = tempWs.onopen;
+                //             _this.ws2.onmessage = tempWs.onmessage;
+                //             _this.ws2.onerror = tempWs.onerror;
+                //             _this.ws2.onclose = tempWs.onclose;
+                //             _this.ws2.keepalive = tempWs.keepalive;
+                //             _this.ws2.last_health_time = -1;
+                //         }
+
+                //     }
+                //   setTimeout(() => {
+                //     _this.dataList.map(e=>{
+                //             if(e.executeStatus == 0){
+                //               e.executeStatus =2
+                //             }
+                //         })
+                //   }, 30000);
+
+              } else if(data && data.code != 0){
+                this.$message({
+                  message: data.msg,
+                  type: 'warning',
+                  duration: 1500,
+                })
+              }
+            })
+          }) 
+        // }
+        
+      },
+
+      // 切换到楼层页面
+      goToFloor (equipId,name) {
+        // console.log(name)
+        this.$router.push({path:'/equipment-monitor-socket-floor',query:{equipId: equipId,name: name}})
+        // this.$router.push({name:'equipment-monitor-socket-floor',params:{equipId: equipId,name: name}})
+      },
+      // 今日总用电Top5
+      getTop () {
+        this.$http({
+          url: this.$http.adornUrl('/admin/tequipoutlet/ranking'),
+          method: 'post',
+          data: this.$http.adornData({
+            'statisticsObjType': 1,
+            'statisticsObjId': JSON.parse(window.sessionStorage.getItem('userInfo')).orgId
+          })
+        }).then(({ data }) => {
+          if (data && data.code === 0) {
+            this.topData = data.info.top
+            this.totalData = data.info.total
+          }
+        })
+      },
+      // 设备运行状态
+      initPie () {
+        this.$http({
+          url: this.$http.adornUrl('/admin/tequipoutlet/info'),
+          method: 'post',
+          data: this.$http.adornData({
+            'statisticsObjType': 1,
+            'statisticsObjId': JSON.parse(window.sessionStorage.getItem('userInfo')).orgId
+          })
+        }).then(({ data }) => {
+          if (data && data.code === 0) {
+            let datas = data.info
+            if(document.getElementById('pie')) {
+              let pie = echarts.init(document.getElementById('pie'))
+              let option = {
+                tooltip : {
+                    trigger: 'item',
+                    formatter: "{a} <br/>{b} : {c} ({d}%)"
+                },          
+                legend: {
+                    type: 'scroll',
+                    orient: 'vertical',
+                    y: 'bottom',
+                    data: [
+                      {
+                        name:'运行数量',
+                        icon:'circle',
+                      },
+                      {
+                        name:'空闲数量',
+                        icon:'circle'
+                      },{
+                        name:'故障数量',
+                        icon:'circle'
+                      }
+                    ],
+                    formatter:  function(name){
+                      var target;
+                      for (var i = 0, l = datas.length; i < l; i++) {
+                        if (datas[i].name == name) {
+                            target = datas[i].value;
+                            }
+                        }
+                      var arr = [
+                        name + target + '台'
+                      ]
+                      return arr.join('\n')
+                    },
+                },
+                series : [
+                    {
+                      label: {
+                        show: true,
+                        position: "outside",
+                        textStyle: {                       
+                        },
+                        formatter : function (e) {
+                          var newStr=" ";
+                          var start,end;
+                          var name_len=e.name.length;    　　　　　　　　　　　　   //每个内容名称的长度
+                          var max_name=2;    　　　　　　　　　　　　　　　　　　//每行最多显示的字数
+                          var new_row = Math.ceil(name_len / max_name); 　　　　// 最多能显示几行，向上取整比如2.1就是3行
+                          if(name_len>max_name){ 　　　　　　　　　　　　　　  //如果长度大于每行最多显示的字数
+                            for (var i=0;i<new_row;i++) { 　　　　　　　　　　　   //循环次数就是行数
+                              var old='';    　　　　　　　　　　　　　　　　    //每次截取的字符
+                              start=i*max_name;    　　　　　　　　　　     //截取的起点
+                              end=start+max_name;    　　　　　　　　　  //截取的终点
+                              if (i==new_row-1) {    　　　　　　　　　　　　   //最后一行就不换行了
+                                old=e.name.substring(start);
+                              }else{
+                                old=e.name.substring(start,end)+"\n";    
+                              }
+                              newStr+=old; //拼接字符串
+                            }
+                          }else{                                          //如果小于每行最多显示的字数就返回原来的字符串
+                            newStr=e.name; 
+                          }
+                          return newStr;
+                        }
+                      },
+                      name: '设备',
+                      type: 'pie',
+                      radius : '55%',
+                      center: ['50%', '40%'],
+                      data: [
+                        {
+                          value:datas[2].value,
+                          name:'故障数量',
+                          itemStyle:{
+                            normal:{
+                              color:'#ffc600',
+                            }
+                          }
+                        },
+                        {
+                          value:datas[1].value,
+                          name:'空闲数量',
+                          itemStyle:{
+                            normal:{
+                              color:'#5ac8fa',
+                            }
+                          }
+                        },
+                        {
+                          value:datas[0].value,
+                          name:'运行数量',
+                          itemStyle:{
+                            normal:{
+                              color:'#4eebbd',
+                            }
+                          }
+                        }
+                      ]
+                    }
+                ]
+              }
+              pie.setOption(option);
+            }            
+          }
+        })
+      },
+      /* getId(index) {
+        return "sockets_switch" + parseInt(++index)
+      }, */
+      aaa() {
+        document.getElementById('sockets').style.height = (window.innerHeight - 170) + 'px'
+        // this.$refs.contentview.style.height=siteContentViewHeight().minHeight
+      },
+      // 大楼信息列表
+      list() {
+        // console.log(this.input5)
+        this.$http({
+          url: this.$http.adornUrl('/admin/tequipoutlet/list'),
+          method: 'post',
+          data: this.$http.adornData({
+            value: this.input5
+          })
+        }).then(({
+          data
+        }) => {
+          if (data && data.code === 0) {
+            this.items = data.info
+          }
+        })
+      },
+      // 插座系统实时负荷
+      initEcharts() {
+        var sockets_xAxis_data = [];
+        var sockets_legend_data = [];
+        var sockets_series_data = [];
+        this.$http({
+          url: this.$http.adornUrl('/admin/tequipoutlet/hourload'),
+          method: 'post',
+          data: this.$http.adornData({
+            'statisticsDate':this.value,
+            'statisticsObjType': 1,
+            'statisticsObjId': JSON.parse(window.sessionStorage.getItem('userInfo')).orgId
+          })
+        }).then(({
+          data
+        }) => {
+          if (data && data.code === 0) {
+            // console.log(data)
+            sockets_xAxis_data = data.info.xAxis;
+            sockets_legend_data = data.info.legend;
+            sockets_series_data = data.info.series
+            /* $.each(data.info.series, function (n, dat) {
+              sockets_series_data.push(dat.data)
+            }); */
+            if(document.getElementById('echarts')) {
+              var sockets_echarts = echarts.init(document.getElementById('echarts'))
+              var sockets_option = {
+                // color: ['#ff5252', '#6767e2'],
+                color: ['#ff5252'],
+                tooltip: {
+                  trigger: 'axis',
+                  axisPointer: {
+                    // type: 'cross',
+                    label: {
+                      backgroundColor: '#6a7985'
+                    }
+                  }
+                },
+                title:{
+                  x:100,
+                  y: 'top',
+                  textStyle: {
+                    fontSize: 18,
+                    fontWeight: 'bold',
+                    color: '#333'          // 主标题文字颜色
+                  },
+                },
+                legend: {
+                  orient: 'horizontal',
+                  // selectedMode: false,
+                  data: sockets_legend_data, //分别修改legend格式
+                  textStyle: {
+                    fontSize: 12,
+                    color: '#000'
+                  },
+                },
+                grid: {
+                  x: 50,
+                  y: 40,
+                  x2: 50,
+                  y2: 65,
+                  borderWidth: 0
+                },
+                xAxis: {
+                  // name:'时间',
+                  type: 'category',
+                  boundaryGap: false,
+                  splitLine:{
+                    show:true
+                  },
+                  data: sockets_xAxis_data
+                },
+                yAxis: {
+                  name: '功率',
+                  min: 0,
+                  // max: 200,
+                  // max:null,
+                  splitLine:{
+                    show:true
+                  },
+                  splitNumber: 4,
+                  axisLine: {
+                    lineStyle: {
+                      type: 'solid',
+                      color: '#666', //y轴坐标轴颜色
+                      width: '1' //坐标轴宽度
+                    }
+                  }
+                },
+                dataZoom: [{
+                  // show:false,
+                  zoomOnMouseWheel: true,
+                  type: 'slider',
+                  realtime: true, //拖动滚动条时是否动态的更新图表数据
+                  height: 20, //滚动条高度
+                  // start: _this.cur_data - 8.4, //滚动条开始位置（共100等份）
+                  // end: _this.cur_data //结束位置（共100等份）
+                }, {
+                  type: 'inside', //鼠标滚轮
+                  realtime: true,
+                }, ],
+                series: [{
+                  name: sockets_legend_data[0],
+                  data: sockets_series_data[0].data,
+                  type: 'line',
+                  symbol: 'none',
+                  itemStyle: {
+                    normal: {
+                      lineStyle: {
+                        color: '#ff5252'
+                      }
+                    }
+                  },
+                },/*  {
+                  connectNulls: true,
+                  name: sockets_legend_data[1],
+                  data: sockets_series_data[1],
+                  type: 'line',
+                  symbol: 'none',
+                  itemStyle: {
+                    normal: {
+                      lineStyle: {
+                        color: '#6767e2'
+                      }
+                    }
+                  },
+                } */]
+              };
+              sockets_echarts.setOption(sockets_option);
+              let _this = this
+              let token = this.$cookie.get('token')
+              let arr = []
+              for (let item of data.info.series) {
+                if(item.id != null){
+                    arr.push(item.id)
+                }                           
+              }
+              if(this.value == dateFormatter(new Date(), false)){
+              // 初始化一个 WebSocket 对象
+              // _this.buildWs = new WebSocket("Ws://123.207.167.163:9010/ajaxchattest");
+              _this.buildWs = new WebSocket(window.SITE_CONFIG.wsBaseUrl+ token + '/' + "outlet" + "/" + "cruve");
+
+              // _this.buildWs = new WebSocket("")
+              _this.buildWs.last_health_time = -1; // 上一次心跳时间
+              _this.buildWs.keepalive = function() { 
+                let time = new Date().getTime();
+                if(_this.buildWs.last_health_time !== -1 && time - _this.buildWs.last_health_time > 20000) { // 不是刚开始连接 并且 当前时间距离上次成功心跳的时间超过20秒
+                  _this.buildWs.close() 
+                } else { // 如果断网了，buildWs.send会无法发送消息出去。buildWs.bufferedAmount不会为0。 
+                  if(_this.buildWs.bufferedAmount === 0 && _this.buildWs.readyState === 1) { 
+                    _this.buildWs.send('ping'); 
+                    _this.buildWs.last_health_time = time; 
+                  } 
+                }
+              }
+
+              if(_this.buildWs) {
+                let reconnect = 0; //重连的时间 
+                let reconnectMark = false; //是否重连过 
+                /* this.setState({ notificationSocket: true }) */
+                // 建立 web socket 连接成功触发事件
+                _this.buildWs.onopen = function () {
+                  _this.buildWs.send(arr)
+                  reconnect = 0; 
+                  reconnectMark = false; 
+                  _this.buildWs.receiveMessageTimer = setTimeout(() => {
+                    _this.buildWs.close();
+                  }, 30000); // 30s没收到信息，代表服务器出问题了，关闭连接。如果收到消息了，重置该定时器。
+                  if(_this.buildWs.readyState === 1) { // 为1表示连接处于open状态
+                    _this.buildWs.keepAliveTimer = setInterval(() => {
+                      _this.buildWs.keepalive();
+                    }, 5000)
+                  }
+                };
+                _this.buildWs.onerror = () => {
+                  console.error('onerror')
+                }
+                // 接收服务端数据时触发事件
+                _this.buildWs.onmessage = function (evt) {
+                  if((evt.data)!="pong"){
+                  let wsData = JSON.parse(evt.data)
+                  // console.log(evt.data)
+                  for (let i = 0; i < sockets_series_data.length; i++) {
+                    if (sockets_series_data[i].id == wsData.id) {
+                      sockets_series_data[i].data.push(wsData.value)
+                    }
+                  }
+                  if(document.getElementById('echarts')) {
+                    echarts.init(document.getElementById('echarts')).setOption(sockets_option)
+                  }
+                }
+                  // 收到消息，重置定时器 
+                  clearTimeout(_this.buildWs.receiveMessageTimer);
+                  _this.buildWs.receiveMessageTimer = setTimeout(() => {
+                    _this.buildWs.close();
+                  }, 30000); // 30s没收到信息，代表服务器出问题了，关闭连接。
+                };
+
+                // 断开 web socket 连接成功触发事件
+                _this.buildWs.onclose = function () {
+                  // console.log(window.$route)
+                  clearTimeout(_this.buildWs.receiveMessageTimer); 
+                  clearInterval(_this.buildWs.keepAliveTimer); 
+                  if(!reconnectMark) { // 如果没有重连过，进行重连。 
+                    reconnect = new Date().getTime(); 
+                    reconnectMark = true; 
+                  } 
+                  let tempbuildWs = _this.buildWs; // 保存_this.buildWs对象 
+                  if(new Date().getTime() - reconnect >= 10000) { // 10秒中重连，连不上就不连了 
+                    _this.buildWs.close(); 
+                  } else { 
+                    // _this.buildWs = new WebSocket(window.SITE_CONFIG.wsBaseUrl+ token + '/' + "outlet" + "/" + "cruve");
+                    _this.buildWs.onopen = tempbuildWs.onopen; 
+                    _this.buildWs.onmessage = tempbuildWs.onmessage;
+                    _this.buildWs.onerror = tempbuildWs.onerror; 
+                    _this.buildWs.onclose = tempbuildWs.onclose; 
+                    _this.buildWs.keepalive = tempbuildWs.keepalive; 
+                    _this.buildWs.last_health_time = -1; 
+                  }
+                };
+              }
+            }else{
+              _this.buildWs.close()
+            }
+          }
+          }
+        })
+      },
+    },
+    destroyed () {   
+      if(this.buildWs != null){
+        this.buildWs.close()
+      }
+      if(this.buildListWs != null) {
+        this.buildListWs.close()
+      }   
+      // if(this.ws2 != null) {
+      //   this.ws2.close()
+      // }   
+    }
+  }
+
+</script>
+<style scoped>
+  .sockets {
+    height: 100%;
+  }
+  .socket-top {
+    height: 47%;
+    width: 100%;
+  }
+ .sockets>>> .execute{
+   display: inline-block;
+    width: 24px;
+    height: 24px;
+    background-size: 100% 100%;
+    background-image: url("~@/assets/images/loading.gif");
+  }
+  .success{
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    background-size: 100% 100%;
+    background-image: url("~@/assets/images/success.gif");
+  }
+  .fail{
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    background-size: 100% 100%;
+    background-image: url("~@/assets/images/fail.gif");
+  }
+  .top-left {
+    height: 100%;
+    padding-right: 22px;
+    padding-bottom: 23px;    
+  }
+  .top-echarts {
+    height: 100%;
+    border: 1px solid #eeeeee; 
+    border-radius: 5px
+  }
+  .top-echarts-title {
+    height: 44px;
+    background-color: #f6f6f6;
+    padding-left: 23px;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 200%;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center
+  }
+  .top-echarts-date {
+  }
+  .top-echarts-echart {
+    height: -webkit-calc(100% - 44px); 
+    height: -moz-calc(100% - 44px); 
+    height: calc(100% - 44px);
+  }
+
+  .top-center {
+    height: 100%;
+    padding-right: 22px;
+    padding-bottom: 23px;
+  }
+  .top-pie {
+    height: 100%;
+    border: 1px solid #eeeeee; 
+    border-radius: 5px
+  }
+  .top-piechart {
+    height: -webkit-calc(100% - 44px); 
+    height: -moz-calc(100% - 44px); 
+    height: calc(100% - 44px);
+  }
+
+  .top-right {
+    height: 100%;
+    padding-bottom: 23px;
+  }
+  .top-ranking {
+    height: 100%;
+    border: 1px solid #eeeeee; 
+    border-radius: 5px
+  }
+  .top-list {
+    height: -webkit-calc(100% - 44px); 
+    height: -moz-calc(100% - 44px); 
+    height: calc(100% - 44px);
+  }
+  .top-list-data {
+    height: 15%;
+    padding-left: 5%
+  }
+  .top-list-data p {
+    width: 20%;
+    display: inline-block;
+    font-weight: 700
+  }
+  .top-list .top-list-data:nth-child(1) p {
+    width: 100%;
+    font-size: 16px
+  }
+  .top-list .top-list-data:nth-child(1) p span {
+    color: #f13b4c;
+    font-weight: 700
+  }
+  .top-list-data >>> .el-progress {
+    display: inline-block;
+    width: 50%;
+  }
+  .top-list-data >>> .el-progress .el-progress-bar .el-progress-bar__outer .el-progress-bar__inner .el-progress-bar__innerText {
+    color: #ffc600
+  }
+  .listdata {
+    color: #ffc600;
+    font-weight: 700
+  }
+  .socket-bottom {
+    height: 53%;
+    width: 100%;
+    border: 1px solid #eeeeee; 
+    border-radius: 5px
+  }
+  .socket-bottom-search {
+    height: 60px;
+    width: 100%;
+    background-color: #f6f6f6;
+    position: relative;
+    display: table;
+  }
+  .socket-bottom-search .search {
+    display: table-cell;
+    vertical-align: middle;
+  }
+  .input-with-select {
+    /* width: 20%; */
+    padding-left: 20px
+  }
+  .socket-bottom-data {
+    overflow: auto;
+    margin-top: 20px;
+    height: -webkit-calc(100% - 80px); 
+    height: -moz-calc(100% - 80px); 
+    height: calc(100% - 80px);
+  }
+
+
+  .sockets .el-input--medium .el-input__inner{
+    text-align: center;
+  }
+  .sockets  .sockets-top-input{
+    min-width: 220px;
+    padding: 0.5% 0 0 0;
+    text-align: center;
+    float: right;
+    position: absolute;
+    right: 450px;
+    top: 0%;
+    z-index: 999;
+  }
+  .sockets  .sockets_turn img{
+  width: 100%;
+  height: 100%;
+}
+.sockets .sockets_turn{
+  width: 70%;
+  height: 50%;
+  cursor: pointer;
+}
+  .sockets {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+  }
+
+  .sockets {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+.sockets  .sockets-top {
+    width: 100%;
+    height: 40%;
+    border-bottom: 5px solid #ccc;
+    position: relative;
+  }
+
+ .sockets .sockets-echarts {
+    width: 75%;
+    height: 100%;
+    border-right: 5px solid #ccc;
+    display: inline-block;
+    vertical-align: middle;
+    position: relative;
+  }
+
+ .sockets .sockets-icon {
+    width: 24%;
+    height: 100%;
+    background-color: #fff;
+    display: inline-block;
+    vertical-align: middle;
+    padding: 1% 0;
+    text-align: center;
+  }
+
+ .sockets .icon-list {
+    width: 100%;
+    height: 30%;
+    display: table
+  }
+
+  /* .icon-list img {
+    max-width: 25%;
+    display: inline-block;
+    vertical-align: middle;
+  } */
+
+  .sockets .icon-icon-num {
+    width: 70%;
+    display: inline-block;
+    vertical-align: middle;
+    font-size: 1.2vw;
+    margin-left: 2%;
+    text-align: left;
+  }
+
+  .sockets .icon-icon-num span {
+    font-size: 1.2vw;
+    margin-left: 12%;
+  }
+
+ .sockets .sockets-nav {
+    margin-top: 2%;
+    width: 100%;
+    padding-left: 5%;
+    position: relative;
+  }
+
+.sockets  .sockets-nav img {
+    max-width: 7%;
+    vertical-align: middle;
+    margin-left: 2%;
+  }
+
+ .sockets .sockets-nav span {
+    font-size: 18px;
+    vertical-align: middle;
+    margin-left: 1%;
+  }
+
+ .sockets .sockets-nav-text {
+    width: 100%;
+    font-size: 18px;
+    border: 1px solid #666;
+    padding: 2% 5% 2% 12%;
+    border-radius: 10px;
+    letter-spacing: 1px;
+  }
+
+.sockets  .sockets-input {
+    position: relative;
+    width: 20%;
+    display: inline-block;
+    margin-left: 5%;
+  }
+
+   .sockets .icon-seo {
+    position: absolute;
+    top: 20%;
+    left: 2%;
+    max-width: 100%;
+  }
+
+.sockets  .sockets-nav-but {
+    width: 5%;
+    font-size: 16px;
+    padding: 0.6% 1%;
+    border-radius: 10%;
+    border: none;
+    background-color: rgb(12, 144, 245);
+    color: #fff;
+    cursor: pointer;
+    margin-left: 1%;
+  }
+  .sockets  .sockets-nav-but:hover{
+    background-color: rgb(10, 115, 196);
+  }
+
+ .sockets .sockets-data {
+    width: 90%;
+    height: 48%;
+    margin: 0 auto;
+    background-color: #fff;
+    margin-top: 2%;
+  }
+
+.sockets  .sockets-list {
+    width: 21%;
+    height: 90%;
+    background-color: #fff;
+    border-radius: 2%;
+    display: inline-block;
+    margin: 0 0 2% 3%;
+    vertical-align: middle;
+    border: 1px solid #ccc;
+  }
+
+   .sockets .cz_data {
+    width: 100%;
+    height: 100%;
+    /* margin: 0 auto;
+    overflow-y: scroll; */
+  }
+
+  .socket_img {
+    background:url('~@/assets/images/pic11.png') no-repeat;
+    display:flex;
+    width:20%;
+    min-width:80px;
+    min-height:52px;
+    cursor: pointer;
+  }
+  .socket_on {
+    background:url('~@/assets/images/on1.png') no-repeat;
+    width:50%;
+    min-width: 30px;
+    cursor: pointer;
+    background-position: center center
+  }
+  .socket_off {
+    background:url('~@/assets/images/off1.png') no-repeat;
+    width:50%;
+    min-width: 30px;
+    cursor: pointer;
+    background-position: center center
+  }
+
+ .sockets .sockets_list-title {
+    width: 100%;
+    padding: 5% 8% 0 8%;
+    display: flex;
+    font-weight: 700;
+    color: #7f7e7e;
+    height: 25%;
+    /* min-height: 70px */
+  }
+
+.sockets  .sockets_list-title img {
+    max-width: 100%;
+    /* width: 25%; */
+    cursor: pointer;
+  }
+
+.sockets .list-text {
+  width: 30%;
+  /* height:30%; */
+  display: inline-block;
+}
+
+.sockets_btn {
+  width: 100%;
+  height: 100%;
+  min-height: 45px;
+  border: 1px solid #ccc;
+  border-radius: 20px;
+  position: relative;
+  margin: 0 auto;
+  display: flex
+}
+/* .sockets_btn img:first-child {
+  max-width: 50%;
+  max-height: 100%;
+  width: 1.5vw;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  margin-left: -40%;
+  margin-top: -25%;
+}
+.sockets_btn img:last-child {
+  max-width: 50%;
+  max-height: 100%;
+  width: 1.5vw;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  margin-left: 2px;
+  margin-top: -25%
+} */
+.sockets  .sockets_list-name {
+    width: 80%;
+    margin: 0 auto;
+    font-size: 1vw;
+    text-align: left;
+    margin-bottom: 2%;
+  }
+
+   .sockets .list-visit {
+    width: 90%;
+    height: -webkit-calc(75% - 40px); 
+    height: -moz-calc(75% - 40px); 
+    height: calc(75% - 40px);
+    margin: 20px auto;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    overflow-y: auto;
+    font-size: 14px;
+
+  }
+
+  .sockets .list-visit > div {
+    display: flex;
+    padding: 0 20px;
+    line-height: 220%;
+    min-height: 29px
+  }
+  .sockets .list-visit > div:nth-of-type(even) {
+    background-color: #F2F0F1;
+  }
+  .sockets .list-visit-name {
+    display: flex;
+    flex: 3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .sockets .list-visit-value {
+    display: flex;
+    flex: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .sockets .list-visit-unit {
+    display: flex;
+    width: 50px;
+  }
+
+   .sockets .list-visit p {
+    height: 16%;
+    margin: 0;
+    line-height: 220%;
+    padding: 0% 4%;
+    min-height: 29px
+    /* text-align: center; */
+  }
+
+   .sockets .list-visit span {
+    /* margin-left: 10%; */
+    width: 92%;
+    display: inline-block;
+  }
+
+  .sockets .sockets-list-img {
+    display: table-cell;
+    width: 30%;
+    height: 100%;
+    vertical-align: middle
+  }
+  .sockets .sockets-list-img img {
+    width: 50%;
+  }
+  .sockets .sockets-list-data {
+    display: table-cell;
+    width: 70%;
+    height: 100%;
+    vertical-align: middle
+  }
+  .sockets .sockets-list-data p {
+    padding: 0;
+    margin: 0
+  }
+
+</style>

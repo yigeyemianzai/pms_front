@@ -1,0 +1,446 @@
+<template>
+  <div class="mod-user">
+    <el-form :inline="true" :model="dataForm" @keyup.enter.native="getDataList()">
+      <el-form-item>
+        <el-input v-model="dataForm.userName" placeholder="用户名" clearable></el-input>
+      </el-form-item>
+      <el-form-item>
+        <el-popover
+          ref="orgListPopover"
+          placement="bottom-start"
+          v-model="popuvisible"
+          trigger="click">
+          <el-tree
+            :data="orgList"
+            :props="orgListTreeProps"
+            node-key="orgId"
+            ref="orgListTree"
+            @current-change="orgListTreeCurrentChangeHandle"
+            :default-expand-all="true"
+            :highlight-current="true"
+            :expand-on-click-node="false">
+          </el-tree>
+        </el-popover>
+        <el-input v-model="dataForm.orgName" v-popover:orgListPopover placeholder="按组织机构查询" :readonly="true" clearable @clear='clearOrgName' @focus="getOrgTree"></el-input>
+      </el-form-item>
+      <el-form-item>
+        <el-select v-model="dataForm.deptId" :loading="deptloading" :disabled="deptDisabled" clearable @clear='clearDeptName' placeholder="按部门查询">
+          <el-option
+            v-for="item in deptList"
+            :key="item.deptId"
+            :label="item.deptName"
+            :value="item.deptId">
+          </el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item>
+        <el-button type="success" v-if="isAuth(OPTAUTH_QUERY)" @click="getDataList('params')">查询</el-button>
+        <el-button v-if="isAuth(OPTAUTH_ADD)" type="primary" @click="addOrUpdateHandle()">新增</el-button>
+      </el-form-item>
+    </el-form>
+    <el-table
+      :data="dataList"
+      border
+      :row-style="{height:'36px'}"
+      v-loading="dataListLoading"
+      @selection-change="selectionChangeHandle"
+      style="width: 100%;">
+      <el-table-column
+        type="index"
+        header-align="center"
+        align="center"
+        width="80"
+        label="序号">
+      </el-table-column>
+      <el-table-column type="expand">
+        <template slot-scope="props">
+          <el-form label-position="right" inline class="demo-table-expand">
+            <el-form-item label="用户ID">
+              <span>{{ props.row.userId }}</span>
+            </el-form-item>
+            <el-form-item label="邮箱">
+              <span>{{ props.row.email }}</span>
+            </el-form-item>
+            <el-form-item label="性别">
+              <el-tag v-if="props.row.sex==1" size="small">男</el-tag>
+              <el-tag v-else size="small" type="success">女</el-tag>
+            </el-form-item>
+            <el-form-item label="身份证">
+              <span>{{ props.row.idCard }}</span>
+            </el-form-item>
+            <el-form-item label="个人">
+              <el-tag v-if="props.row.person" size="small">是</el-tag>
+              <el-tag v-else size="small" type="success">否</el-tag>
+            </el-form-item>
+            <el-form-item label="管理员">
+              <el-tag v-if="props.row.sys" size="small">是</el-tag>
+              <el-tag v-else size="small" type="success">否</el-tag>
+            </el-form-item>
+            <el-form-item label="注册时间">
+              <span>{{ props.row.registTime }}</span>
+            </el-form-item>
+            <el-form-item label="过期时间">
+              <span>{{ props.row.expiryDate }}</span>
+            </el-form-item>
+          </el-form>
+        </template>
+      </el-table-column>
+      <el-table-column
+        prop="userName"
+        header-align="center"
+        align="center"
+        width="150"
+        label="用户名">
+      </el-table-column>
+      <el-table-column
+        prop="tel"
+        header-align="center"
+        align="center"
+        width="120"
+        label="手机号">
+      </el-table-column>
+      <el-table-column
+        prop="roleName"
+        header-align="center"
+        align="center"
+        width="150"
+        label="角色">
+      </el-table-column>
+      <el-table-column
+        prop="orgName"
+        header-align="center"
+        align="center"
+        width="200"
+        label="组织机构">
+      </el-table-column>
+      <el-table-column
+        prop="deptName"
+        header-align="center"
+        align="center"
+        width="200"
+        label="部门">
+      </el-table-column>
+      <el-table-column
+        prop="busObjsDesc"
+        header-align="center"
+        align="center"
+        show-overflow-tooltip
+        label="业务对象">
+      </el-table-column>
+      <el-table-column
+        prop="optAuthDesc"
+        header-align="center"
+        align="center"
+        show-overflow-tooltip
+        label="操作权限">
+      </el-table-column>
+      <el-table-column
+        fixed="right"
+        header-align="center"
+        align="center"
+        width="120"
+        label="操作">
+        <template slot-scope="scope">
+          <el-tooltip class="item" effect="dark" content="修改" placement="top">  
+            <el-button v-if="isAuth(OPTAUTH_UPDATE) && scope.row.userId!=1" type="text" size="small" @click="addOrUpdateHandle(scope.row.userId)"><i class="el-icon-edit-outline istyle"></i></el-button>
+          </el-tooltip>
+          <el-tooltip class="item" effect="dark" content="删除" placement="top">  
+            <el-button v-if="isAuth(OPTAUTH_DELETE) && scope.row.userId!=1" type="text" size="small" @click="deleteHandle(scope.row.userId)"><i class="el-icon-delete istyle"></i></el-button>
+          </el-tooltip>
+          <el-tooltip class="item" effect="dark" content="重置用户密码" placement="top">  
+            <el-button v-if="isAuth(OPTAUTH_RESET) && scope.row.userId!=userInfo && initialize" type="text" size="small" @click="resetHandle(scope.row)"><i class="el-icon-refresh istyle"></i></el-button>
+          </el-tooltip>
+        </template>
+      </el-table-column>
+    </el-table>
+    <el-pagination
+      @size-change="sizeChangeHandle"
+      @current-change="currentChangeHandle"
+      :current-page="pageIndex"
+      :page-sizes="[2,10, 20, 50, 100]"
+      :page-size="pageSize"
+      :total="totalPage"
+      layout="total, sizes, prev, pager, next, jumper">
+    </el-pagination>
+    <!-- 弹窗, 新增 / 修改 -->
+    <add-or-update v-if="addOrUpdateVisible" ref="addOrUpdate" @refreshDataList="refreshLocalData"></add-or-update>
+  </div>
+</template>
+
+<script>
+  import AddOrUpdate from './user-add-or-update'
+import { userInfo } from 'os';
+  export default {
+    data () {
+      return {
+        userInfo: JSON.parse(sessionStorage.getItem('userInfo')).userId,
+        initialize: JSON.parse(sessionStorage.getItem('initialize')),
+        dataForm: {
+          userName: null,
+          orgId: null,
+          orgName: null,
+          deptId: null
+        },
+        dataList: [],
+        pageIndex: 1,
+        pageSize: 10,
+        totalPage: 0,
+        dataListLoading: false,
+        dataListSelections: [],
+        addOrUpdateVisible: false,
+        optAuth: [],
+        popuvisible: false,
+        orgList: [],
+        orgListTreeProps: {
+          label: 'orgName',
+          children: 'children'
+        },
+        deptList: [],
+        deptloading: false,
+        deptDisabled: true
+      }
+    },
+    components: {
+      AddOrUpdate
+    },
+    mounted () {
+      // console.log(sessionStorage.getItem('initialize'))
+      // console.log(sessionStorage.getItem('userInfo'))
+      var userInfo = JSON.parse(sessionStorage.getItem('userInfo'))
+      this.dataForm.orgId = userInfo.orgId
+      this.dataForm.deptId = userInfo.deptId
+      this.getDataList()
+      this.getOrgTree()
+      this.getDeptInfo()
+    },
+    methods: {
+      // 重置用户密码
+      resetHandle(row) {
+        this.$confirm(`确定重置用户密码?`, '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }).then(() => {
+          this.$http({
+            url: this.$http.adornUrl('/sys/user/initialize'),
+            method: 'post',
+            data: this.$http.adornData(
+              row
+            )
+          }).then(({data}) => {
+            if(data && data.code == 0) {
+              this.$message.success('操作成功')
+            } else {
+              this.$message.error(data.msg)
+            }          
+          })
+        })
+      },
+      getOrgTree () {
+        if(this.orgList.length!=0){
+          return
+        }
+        this.$http({
+          url: this.$http.adornUrl('/sys/org/getCurnUserManSysOrgTree'),
+          method: 'get',
+          params: this.$http.adornParams()
+        }).then(({data}) => {
+          if(data && data.code == 0) {
+            this.orgList = data.data
+            this.$nextTick(() => {
+              this.orgListTreeSetCurrentNode()
+            })
+          } else {
+            this.$message.error(data.msg)
+          }          
+        })
+      },
+      // 获取数据列表
+      getDataList (params) {
+        if(params){
+          this.pageIndex=1
+        }
+        this.dataListLoading = true
+        this.$http({
+          url: this.$http.adornUrl('/sys/user/list'),
+          method: 'get',
+          params: this.$http.adornParams({
+            'page': this.pageIndex,
+            'limit': this.pageSize,
+            'userName': this.dataForm.userName,
+            'orgId': this.dataForm.orgId,
+            'deptId': this.dataForm.deptId
+          })
+        }).then(({data}) => {
+          if (data && data.code === 0) {
+            console.log(data)
+            this.dataList = data.page.list
+            this.totalPage = data.page.total
+            this.optAuth = data.optAuth
+            this.totalPage = data.page.total
+            this.pageIndex = data.page.pageNum
+            this.pageSize = data.page.pageSize
+          } else {
+            this.dataList = []
+            this.totalPage = 0
+          }
+          this.dataListLoading = false
+        })
+      },
+      // 每页数
+      sizeChangeHandle (val) {
+        this.pageSize = val
+        this.pageIndex = 1
+        this.getDataList()
+      },
+      // 当前页
+      currentChangeHandle (val) {
+        this.pageIndex = val
+        this.getDataList()
+      },
+      // 多选
+      selectionChangeHandle (val) {
+        this.dataListSelections = val
+      },
+      // 新增 / 修改
+      addOrUpdateHandle (id) {
+        this.addOrUpdateVisible = true
+        this.$nextTick(() => {
+          this.$refs.addOrUpdate.init(id)
+        })
+      },
+      // 删除
+      deleteHandle (id) {
+        var userIds = id ? [id] : this.dataListSelections.map(item => {
+          return item.userId
+        })
+        this.$confirm(`确定进行删除操作?`, '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }).then(() => {
+          this.$http({
+            url: this.$http.adornUrl('/sys/user/delete'),
+            method: 'post',
+            data: this.$http.adornData(userIds, false)
+          }).then(({data}) => {
+            if (data && data.code === 0) {
+              this.getDataList()
+
+              this.$message({
+                message: '操作成功',
+                type: 'success',
+                duration: 1500,
+                onClose: () => {
+                }
+              })
+            } else {
+              this.$message.error(data.msg)
+            }
+          })
+        }).catch(() => {})
+      },
+      // 菜单树选中
+      orgListTreeCurrentChangeHandle (data, node) {
+        this.popuvisible = false
+        this.dataForm.orgName = data.orgName
+        this.dataForm.orgId = data.orgId
+        this.clearDeptName()
+        this.getDeptInfo()
+      },
+      // 菜单树设置当前选中节点
+      orgListTreeSetCurrentNode () {
+        if (this.dataForm.orgId && this.$refs.orgListTree != undefined) {
+          this.$refs.orgListTree.setCurrentKey(this.dataForm.orgId)
+          this.dataForm.orgName = (this.$refs.orgListTree.getCurrentNode() || {})['orgName']
+        }
+      },
+      clearOrgName () {
+        this.dataForm.orgId = null
+        this.dataForm.orgName = null
+      },
+      clearDeptName () {
+        this.dataForm.deptId = null
+        // this.deptList = []
+      },
+      getDeptInfo () {
+        this.deptloading = true
+        this.$http({
+          url: this.$http.adornUrl(`/sys/deptinfo/getDeptByOrgId/${this.dataForm.orgId}`),
+          method: 'get'
+        }).then(({data}) => {
+          this.deptloading = false
+          this.deptDisabled = false
+          if (data && data.code === 0) {
+            this.deptList = data.list
+          } else {
+            this.deptList = []
+          }
+        })
+      },
+      refreshLocalData (newitem) {
+        console.log(newitem)
+        var len = this.dataList.length;
+        var updateAction = false
+        var index = null
+        for(var j = 0; j < len; j++) {
+          if(this.dataList[j].userId === newitem.userId){
+            updateAction = true
+            index = j
+          }
+        }
+
+        if(updateAction){
+          this.dataList[index].userName = newitem.userName
+          this.dataList[index].email = newitem.email
+          this.dataList[index].tel = newitem.tel
+          this.dataList[index].person = newitem.person
+          this.dataList[index].sys = newitem.sys
+          this.dataList[index].idCard = newitem.idCard
+          this.dataList[index].expiryDate = newitem.expiryDate
+          this.dataList[index].orgName = newitem.orgName
+          this.dataList[index].roleName = newitem.roleName
+          this.dataList[index].deptName = newitem.deptName
+          this.dataList[index].busObjsDesc = newitem.busObjsDesc
+          this.dataList[index].optAuthDesc = newitem.optAuthDesc
+        }else{
+          //新增一条记录在当前列表头
+          this.dataList.unshift(newitem)
+        }
+      }
+    }
+  }
+</script>
+<style scoped>
+  .demo-table-expand {
+    font-size: 0;
+  }
+  .demo-table-expand label {
+    width: 80px;
+    color: #99a9bf;
+  }
+  .demo-table-expand .el-form-item {
+    margin-right: 0;
+    margin-bottom: 0;
+    width: 330px;
+  }
+/* .istyle {
+  font-size: 18px;
+  font-weight: 500;
+  color: #3397ff
+}
+.mod-user >>> .el-pager li.active {
+  background-color: #33a7fe;
+  color: #fff;
+  font-size: 16px;
+  border-radius: 100%
+}
+.mod-user >>> .el-pager li {
+  min-width: 30px;
+  height: 25px;
+  line-height: 25px
+}
+.mod-user >>> .el-table td, .mod-user >>> .el-table th {
+  padding: 0
+} */
+</style>

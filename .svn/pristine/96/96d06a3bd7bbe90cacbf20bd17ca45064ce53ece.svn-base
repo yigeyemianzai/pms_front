@@ -1,0 +1,589 @@
+<template>
+  <div class="topology" id="topology">
+    <div class="lefttree">
+      <!--  <el-tree :props="props" ref="tree" :data="dataList" node-key="id" highlight-current @node-click="handleNodeClick" class="treeredefine">
+        <div class="custom-tree-node" slot-scope="{ node, data}">
+          <span>
+              <i :class="{build:data.voType==2,floor:data.voType==3,room:data.voType==4}"></i>{{ node.label }}
+          </span>
+        </div>
+        
+      </el-tree>-->
+      <el-tree :data="dataList" :props="props" @node-click="handleNodeClick" default-expand-all node-key="id" accordion highlight-current></el-tree>
+    </div>
+    <div class="righttopology">
+      <div id="myDiagramDiv" class="gplot" v-loading="loading" element-loading-text="拓扑图加载中"></div>
+    </div>
+    <el-dialog
+      title="日志记录"
+      :close-on-click-modal="false"
+      :visible.sync="recordTableVisible"
+      center="center"
+    >
+      <el-table border :data="recordTable">
+        <el-table-column type="index" header-align="center" align="center" label="序号"></el-table-column>
+        <el-table-column prop="des" header-align="center" align="center" label="日志描述"></el-table-column>
+        <el-table-column prop="time" header-align="center" align="center" label="操作时间"></el-table-column>
+      </el-table>
+    </el-dialog>
+  </div>
+</template>
+<script>
+import go from "gojs";
+// import { setTimeout } from "timers";
+var $ = go.GraphObject.make;
+export default {
+  name: "diagram",
+  props: ["modelData"],
+  data() {
+    return {
+      dataList: [],
+      props: {
+        label: "name",
+        // children: 'zones',
+        // isLeaf:  'leaf',
+        type: "voType"
+      },
+      /* props: {
+        label: 'name',
+        children: 'zones',
+        isLeaf: 'leaf'
+      }, */
+      loading: false,
+      diagram: null,
+      myDiagram: null,
+      model: null,
+      floorWs: null,
+      topoList: [],
+      commList: [],
+      recordTableVisible: false,
+      recordTable: [
+        {
+          time: "2019-02-03",
+          des: "xxxxxx"
+        }
+      ]
+    };
+  },
+  created() {},
+  watch: {},
+  mounted: function() {
+    this.getTree();
+    document.getElementById("topology").style.height = window.innerHeight - 170 + "px";
+    let _this = this;
+    let token = this.$cookie.get("token");
+    let arr = [];
+    
+    // }
+    this.myDiagram = $(go.Diagram, "myDiagramDiv", {
+      isReadOnly: true,
+      "undoManager.isEnabled": true, // enable Ctrl-Z to undo and Ctrl-Y to redo
+      layout: $(
+        go.TreeLayout, // specify a Diagram.layout that arranges trees
+        { angle: 90, layerSpacing: 35 }
+      )
+    });
+
+    // 定义一个直角路由形式的连线模板, 去掉箭头
+    this.myDiagram.linkTemplate = $(
+      go.Link,
+      { routing: go.Link.Orthogonal, corner: 10 },
+      // $(go.Shape, { strokeWidth: 3, stroke: "#787ad1" })); // the link shape
+      $(
+        go.Shape,
+        // mark each Shape to get the link geometry with isPanelMain: true
+        { isPanelMain: true, stroke: "#787ad1", strokeWidth: 2 }
+      ),
+      $(go.Shape, { toArrow: "Circle", stroke: "#a4a5e4", strokeWidth: 1 })
+    );
+
+    // the template we defined earlier
+    this.myDiagram.nodeTemplate = $(
+      go.Node,
+      "Horizontal",
+      $(
+        go.Panel,
+        "Table",
+        $(
+          go.Picture,
+          // { margin: 2, width: 60,  height: 80},
+          { row: 1, column: 1 },
+          new go.Binding("source"),
+          new go.Binding("width", "width"),
+          new go.Binding("height", "height")
+        ),
+        $(
+          go.Panel,
+          "Table",
+          { row: 2, column: 1 },
+          $(
+            go.TextBlock,
+            "Default Text",
+            { margin: 0, stroke: "#53a2ff", font: "bold 12px sans-serif" },
+            { row: 1, column: 0 },
+            new go.Binding("text", "name")
+          ),
+          $(
+            go.TextBlock,
+            "Default Text",
+            { margin: 0, stroke: "#050505", font: "bold 12px sans-serif" },
+            { row: 1, column: 1 },
+            new go.Binding("text", "nameData")
+          ),
+          $(
+            go.TextBlock,
+            "Default Text",
+            { margin: 0, stroke: "#53a2ff", font: "bold 12px sans-serif" },
+            { row: 2, column: 0 },
+            new go.Binding("text", "sn")
+          ),
+          $(
+            go.TextBlock,
+            "Default Text",
+            { margin: 2, stroke: "#050505", font: "bold 12px sans-serif" },
+            { row: 2, column: 1 },
+            new go.Binding("text", "snData")
+          )
+        )
+      )
+    );
+
+    this.model = $(go.TreeModel);
+    this.model.nodeDataArray = []
+    /* this.model.nodeDataArray = [
+      {
+        key: "1",
+        name: "编号",
+        nameData: "12",
+        sn: "SN",
+        snData: "100001",
+        source: require("../../../assets/images/topo.png"),
+        width: 120,
+        height: 120
+      },
+      {
+        key: "2",
+        parent: "1",
+        name: "编号",
+        nameData: "12",
+        sn: "SN",
+        snData: "100001",
+        source: require("../../../assets/images/topoon.png"),
+        width: 60,
+        height: 80
+      },
+      {
+        key: "3",
+        parent: "1",
+        name: "编号",
+        nameData: "12",
+        sn: "SN",
+        snData: "100001",
+        source: require("../../../assets/images/topooff.png"),
+        width: 60,
+        height: 80
+      },
+      {
+        key: "4",
+        parent: "3",
+        name: "编号",
+        nameData: "12",
+        sn: "SN",
+        snData: "100001",
+        source: require("../../../assets/images/topoon.png"),
+        width: 60,
+        height: 80
+      },
+      {
+        key: "5",
+        parent: "3",
+        name: "编号",
+        nameData: "12",
+        sn: "SN",
+        snData: "100001",
+        source: require("../../../assets/images/topooff.png"),
+        width: 60,
+        height: 80
+      },
+      {
+        key: "8",
+        parent: "3",
+        name: "编号",
+        nameData: "12",
+        sn: "SN",
+        snData: "100001",
+        source: require("../../../assets/images/topoon.png"),
+        width: 60,
+        height: 80
+      },
+      {
+        key: "9",
+        parent: "3",
+        name: "编号",
+        nameData: "12",
+        sn: "SN",
+        snData: "100001",
+        source: require("../../../assets/images/topooff.png"),
+        width: 60,
+        height: 80
+      },
+      {
+        key: "6",
+        parent: "2",
+        name: "编号",
+        nameData: "12",
+        sn: "SN",
+        snData: "100001",
+        source: require("../../../assets/images/topoon.png"),
+        width: 60,
+        height: 80
+      },
+      {
+        key: "7",
+        parent: "2",
+        name: "编号",
+        nameData: "12",
+        sn: "SN",
+        snData: "100001",
+        source: require("../../../assets/images/topooff.png"),
+        width: 60,
+        height: 80
+      }
+    ]; */
+    this.myDiagram.model = this.model;
+    // 添加节点点击事件
+    console.log(this);
+    let that = this;
+    this.myDiagram.addDiagramListener("ObjectSingleClicked", function(e) {
+      //Select_Port = e.subject.part.data.key;    e.subject.part.data即获取到的data
+      // that.recordTableVisible = true;
+    });
+  },
+  methods: {
+    getTree() {
+      this.$http({
+        url: this.$http.adornUrl(
+          "/base/tstatisticsdetailconfig/queryTuopuTree"
+        ),
+        method: "post",
+        data: this.$http.adornData({
+          orgId: this.$store.state.user.orgId
+        })
+      }).then(({ data }) => {
+        if (data && data.code === 0) {
+          this.dataList = data.page;
+        }
+      });
+    },
+
+    // 选择树节点  1组织机构 2 楼层 3 网关
+    handleNodeClick(data) {
+      // console.log(data)
+      // this.floorWs.send(data)      
+      if(data.voType == 3) {
+        // console.log(this.floorWs)
+        if(this.floorWs != null) {
+          this.loading = true;
+          setTimeout(() => {
+            this.loading = false;
+          }, 1000)
+          this.$http({
+            url: this.$http.adornUrl("/admin/tequipoutlet/gplotquery"),
+            method: "post",
+            data: this.$http.adornData({
+              id: data.id,
+              voType: data.voType
+            })
+          }).then(({ data }) => {
+            if (data && data.code === 0) {
+              this.commList = data.info;
+              if (this.floorWs != null) {
+                this.floorWs.send(this.commList);
+              }
+            }
+          })
+        } else {
+          let _this = this
+          let token = this.$cookie.get("token");
+          // 初始化一个 WebSocket 对象
+          _this.floorWs = new WebSocket(
+            window.SITE_CONFIG.wsBaseUrl + token + "/" + "outlet" + "/" + "gplotquery"
+          );
+          // _this.floorWs =('')
+          //心跳
+          _this.floorWs.last_health_time = -1; // 上一次心跳时间, -1代表还没有发过心跳
+          _this.floorWs.keepalive = function() {
+            let time = new Date().getTime();
+            /* console.log(time)
+                          console.log(_this.floorWs.last_health_time)
+                          console.log(time -_this.floorWs.last_health_time) */
+            // console.log(_this.floorWs.last_health_time )
+            if (
+              _this.floorWs.last_health_time !== -1 &&
+              time - _this.floorWs.last_health_time > 25000
+            ) {
+              // 不是刚开始连接并且超过25s没有心跳
+              _this.floorWs.close();
+            } else {
+              // 如果断网了，ws.send会无法发送消息出去。ws.bufferedAmount不会为0。
+              if (
+                _this.floorWs.bufferedAmount === 0 &&
+                _this.floorWs.readyState === 1
+              ) {
+                _this.floorWs.send("ping");
+                _this.floorWs.last_health_time = time;
+              }
+            }
+          };
+
+          // if(_this.floorWs) {
+          let reconnect = 0; //重连的时间
+          let reconnectMark = false; //是否重连过
+          /* this.setState({ notificationSocket: true }) */
+          // 建立 web socket 连接成功触发事件
+          _this.floorWs.onopen = function() {
+            reconnect = 0;
+            reconnectMark = false;
+            _this.floorWs.aaa = setTimeout(() => {
+              _this.floorWs.close();
+            }, 45000); // 45s没收到信息，代表服务器出问题了，关闭连接。如果收到消息了，重置该定时器。
+            if (_this.floorWs.readyState === 1) {
+              // 为1表示连接处于open状态
+              _this.floorWs.keepAliveTimer = setInterval(() => {
+                _this.floorWs.keepalive();
+              }, 3000);
+            }
+            _this.$http({
+                url: _this.$http.adornUrl("/admin/tequipoutlet/gplotquery"),
+                method: "post",
+                data: _this.$http.adornData({
+                  id: data.id,
+                  voType: data.voType
+                })
+              }).then(({ data }) => {
+                if (data && data.code === 0) {
+                  _this.commList = data.info;
+                  _this.floorWs.send(_this.commList);
+                }
+              });
+          };
+          _this.floorWs.onerror = () => {
+            // console.error('onerror')
+          };
+          // 接收服务端数据时触发事件
+          _this.floorWs.onmessage = function(evt) {
+            // 收到消息，重置定时器
+            clearTimeout(_this.floorWs.aaa);
+            _this.floorWs.aaa = setTimeout(() => {
+              _this.floorWs.close();
+            }, 45000); // 45s没收到信息，代表服务器出问题了，关闭连接。
+            if (evt.data != "pong") {
+              let receive = JSON.parse(evt.data);
+              this.toppList = receive;
+              if (receive.length > 1) {
+                for (let i = 0; i < receive.length; i++) {
+                  if (i == 0) {
+                    receive[i] = {
+                      key: receive[i].sn,
+                      name: "编号",
+                      nameData: receive[i].code,
+                      sn: "SN",
+                      snData: receive[i].sn,
+                      source: require("../../../assets/images/topo.png"),
+                      width: 120,
+                      height: 120
+                    };
+                  } else {
+                    let source = null;
+                    if (receive[i].status == "0") {
+                      source = require("../../../assets/images/topoon.png");
+                    } else if (receive[i].status == "1") {
+                      source = require("../../../assets/images/topooff.png");
+                    }
+                    receive[i] = {
+                      key: receive[i].sn,
+                      parent: receive[i].pid,
+                      name: "编号",
+                      nameData: receive[i].code,
+                      sn: "SN",
+                      snData: receive[i].sn,
+                      source: source,
+                      width: 60,
+                      height: 80
+                    };
+                  }
+                }
+                _this.model.nodeDataArray = receive;
+              } else {
+                for (let j = 0; j < this.toppList.length; j++) {
+                  if (this.toppList[j].sn == receive.sn) {
+                  }
+                }
+                _this.model.nodeDataArray = receive;
+                // console.log(_this.model.nodeDataArray)
+              }
+              _this.myDiagram.model = _this.model;
+            }
+          };
+
+          // 断开 web socket 连接成功触发事件
+          _this.floorWs.onclose = function() {
+            // alert(1)
+            clearTimeout(_this.floorWs.aaa);
+            clearInterval(_this.floorWs.keepAliveTimer);
+            if (!reconnectMark) {
+              // 如果没有重连过，进行重连。
+              reconnect = new Date().getTime();
+              reconnectMark = true;
+            }
+            let tempfloorWs = _this.floorWs; // 保存_this.floorWs对象
+            if (new Date().getTime() - reconnect >= 10000) {
+              // 10秒中重连，连不上就不连了
+              _this.floorWs.close();
+            } else {
+              // _this.floorWs = new WebSocket( window.SITE_CONFIG.wsBaseUrl + token + "/" + "outlet" + "/" + "gplotquery" );
+              _this.floorWs.onopen = tempfloorWs.onopen;
+              _this.floorWs.onmessage = tempfloorWs.onmessage;
+              _this.floorWs.onerror = tempfloorWs.onerror;
+              _this.floorWs.onclose = tempfloorWs.onclose;
+              _this.floorWs.keepalive = tempfloorWs.keepalive;
+              _this.floorWs.last_health_time = -1;
+            }
+          };
+        }
+      }
+        
+      
+      /* this.model.nodeDataArray =
+      [
+        { key: "1",              name: "编号",nameData: '12', sn: 'SN',snData: '100001',   source: require("../../../assets/images/222.png") },
+        { key: "2", parent: "1", name: "编号",nameData: '12',sn: 'SN',snData: '100001',    source: require("../../../assets/images/222.png") }
+      ];
+      this.myDiagram.model = this.model */
+    }
+  },
+  destroyed() {
+    if (this.floorWs != null) {
+      this.floorWs.close();
+    }
+  }
+};
+</script>
+<style scoped>
+.topology {
+  display: flex;
+}
+
+/* 左侧树样式开始 */
+.lefttree {
+  width: 10%;
+  min-width: 200px;
+  border-radius: 5px;
+  padding: 5px 0 5px 10px;
+  border: 1px solid rgba(204, 204, 204, 31%);
+  box-shadow: 5px 5px 16px rgba(204, 204, 204, 91%),
+    0px 0px 3px rgba(204, 204, 204, 91%);
+}
+.treeredefine {
+  background: transparent;
+}
+.lefttree
+  >>> .el-tree--highlight-current
+  .el-tree-node.is-current
+  > .el-tree-node__content
+  .build {
+  display: inline-block;
+  background: url("~@/assets/images/tree-icon11.png") no-repeat;
+  height: 16px;
+  width: 16px;
+  margin-right: 10px;
+  vertical-align: middle;
+  line-height: 16px;
+}
+.lefttree >>> .is-expanded {
+  /* border-bottom: 2px solid red; */
+}
+.lefttree
+  >>> .el-tree--highlight-current
+  .el-tree-node.is-current
+  > .el-tree-node__content
+  .floor {
+  display: inline-block;
+  background: url("~@/assets/images/tree-icon22.png") no-repeat;
+  height: 16px;
+  width: 16px;
+  margin-right: 10px;
+  vertical-align: middle;
+  line-height: 16px;
+}
+.lefttree
+  >>> .el-tree--highlight-current
+  .el-tree-node.is-current
+  > .el-tree-node__content
+  .room {
+  display: inline-block;
+  background: url("~@/assets/images/tree-icon33.png") no-repeat;
+  height: 16px;
+  width: 16px;
+  margin-right: 10px;
+  vertical-align: middle;
+  line-height: 16px;
+}
+.build {
+  display: inline-block;
+  background: url("~@/assets/images/tree-icon1.png") no-repeat;
+  height: 16px;
+  width: 16px;
+  line-height: 16px;
+  margin-right: 10px;
+  vertical-align: middle;
+}
+.floor {
+  display: inline-block;
+  background: url("~@/assets/images/tree-icon2.png") no-repeat;
+  height: 16px;
+  width: 16px;
+  line-height: 16px;
+  margin-right: 10px;
+  vertical-align: middle;
+}
+.room {
+  display: inline-block;
+  background: url("~@/assets/images/tree-icon3.png") no-repeat;
+  height: 16px;
+  width: 16px;
+  line-height: 16px;
+  margin-right: 10px;
+  vertical-align: middle;
+}
+.tree-expand {
+  /* display: inline-block; */
+  position: absolute;
+  right: 10%;
+  background: url("~@/assets/images/tree-open.png") no-repeat;
+  height: 15px;
+  width: 15px;
+  /* text-align: right; */
+}
+.shrink {
+  position: absolute;
+  right: 10%;
+  background: url("~@/assets/images/tree-close.png") no-repeat;
+  height: 15px;
+  width: 15px;
+}
+/* 左侧树样式结束 */
+
+/* 右侧拓扑图样式开始 */
+.righttopology {
+  flex: 1;
+  overflow: auto;
+  padding-left: 20px;
+}
+.gplot {
+  width: 100%;
+  height: 100%;
+}
+/* 右侧拓扑图样式结束 */
+</style>
+

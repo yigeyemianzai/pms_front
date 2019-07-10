@@ -1,0 +1,3184 @@
+<template>
+  <div id="socketsFloor" class="socket-floor">
+    <el-row class="socket-top">
+      <el-col :xl="13" :lg="13" :md="13" :sm="13" :xs="13" class="top-left">
+        <div class="top-echarts">
+          <div class="top-echarts-title">
+            <span v-html="stationName + '插座系统实时负荷'"></span>
+            <div class="top-echarts-date">
+              <el-date-picker v-model="value" type="date" placeholder="选择日期" format="yyyy-MM-dd" value-format="yyyy-MM-dd"
+                :picker-options="pickerOptions">
+              </el-date-picker>
+            </div> 
+          </div>
+          <div class="top-echarts-echart" id="echartsFloor">
+          </div>
+        </div>          
+      </el-col>
+      <el-col :xl="5" :lg="5" :md="5" :sm="5" :xs="5" class="top-center">          
+          <div class="top-pie">
+            <div class="top-echarts-title" v-html="stationName + '设备运行状态'"></div>
+            <div class="top-piechart" id="pieFloor"></div>
+          </div>
+      </el-col>
+      <el-col :xl="6" :lg="6" :md="6" :sm="6" :xs="6" class="top-right">
+        <div class="top-ranking">
+          <div class="top-echarts-title">今日总电耗Top5</div>
+          <div class="top-list">
+            <div class="top-list-data">
+              <p><span v-html="stationName + '今日总能耗:'"></span><span>{{totalData}}kW</span></p>
+            </div>
+            <div class="top-list-data" v-for="(item,index) in topData" :key="index" > 
+              <p>{{item.name}}</p>
+              <el-progress :percentage="parseInt(item.per)" :text-inside="true" color="#ffc600" :stroke-width='18'></el-progress>
+              <p class="listdata">{{item.value}}kWh</p>
+            </div>
+          </div>
+        </div>
+      </el-col>
+    </el-row>
+    <el-row class="socket-bottom" v-loading='load' element-loading-text="开关操作中">
+      <div class="socket-bottom-search">
+        <div class="search">
+          <div style="display:inline-block">
+            <el-input placeholder="请输入设备名称" v-model="input5" class="input-with-select">
+              <!-- <el-button slot="append" icon="el-icon-search"></el-button> -->
+            </el-input>
+          </div>         
+          <div style="display:inline-block">
+            <el-select v-model="floorValue" placeholder="请选择">
+              <el-option
+                v-for="item in options"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value">
+              </el-option>
+            </el-select>
+          </div>
+          <div style="display:inline-block">
+            <el-select v-model="typeValue" placeholder="请选择">
+              <el-option
+                v-for="item in typeOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value">
+              </el-option>
+            </el-select>
+          </div>
+          <el-button slot="append" icon="el-icon-search" @click="list()"></el-button>         
+          <div style="float:right;display:inline-block;padding-right:20px">
+            <el-button type="info" plain @click="showFloorDailog()" v-if="isAuth(SCOKET_ONOFF)">状态群控</el-button> 
+          </div>
+          <div style="float:right;display:inline-block;padding-right:20px">
+            <el-button type="warning" plain @click="showSetDailog()" v-if="isAuth(SCOKET_DZSET)">定值群设</el-button> 
+          </div>                    
+        </div>       
+      </div>
+      <div class="socket-bottom-data">
+        <div class="cz_data">
+          <div class="sockets-list" v-for="(item, index) in socketFloorData " :key="index">
+            <div style="display:flex;flex:1;font-size:18px;justify-content:center;color:#00aeef;fontWeight:700;font-family:Arial;padding-top:3px">{{item.floorName}}</div> 
+            <div class="socket-setbutton" @click="showSocketSet(item.equipName,item.equipId)" v-if="isAuth(SCOKET_DZSET)"><i class="el-icon-setting"></i></div>
+            <div class="sockets_list-title">
+              <!-- <div class="socket_img" ></div>
+              <div style="display:flex;flex:1;font-size:0.8vw"><p style="display:inline">{{item.name}}</p></div>
+              <div style="display:flex;width:30%;min-width:80px">
+                <div class="sockets_btn">
+                  <div class="socket_on" :id="'on2'+ index" @click="turnOn(item.runStatus,index)"></div>
+                  <div class="socket_off" :id="'off2'+ index" @click="turnOff(item.runStatus,index)"></div>
+                </div>
+              </div> -->
+              <div :class="{socket1_img:item.runStatus==1,socket2_img:item.runStatus==0}"></div>
+              <div style="display:flex;flex:1;font-size:14px;flex-direction:column">
+                <div style="display:flex;flex:3;font-size:14px;">
+                  <div style="display:flex;flex:1;font-size:14px;flex-direction:column">
+                    <!-- <div style="display:flex;flex:1;font-size:14px">{{item.floorName}}</div>  -->
+                    <div style="display:flex;flex:1;font-size:14px;color:#fa860a;word-wrap:break-word">{{item.equipName}}</div>
+                    <div style="display:flex;flex:1;font-size:13px">类型：{{item.type | typeChange}}</div>
+                  </div>
+                  <div style="display:flex;width:80px;justify-content:center;align-items:center">
+                    <!-- <div class="sockets_btn">
+                      <div class="socket_on" :id="'on2'+ item.equipId" @click="turnOn(item.runStatus,item.equipId)"></div>
+                      <div class="socket_off" :id="'off2'+ item.equipId" @click="turnOff(item.runStatus,item.equipId)"></div>
+                    </div> -->
+                    <el-switch
+                      v-model="item.runStatus"
+                      :width="46"
+                      active-text="on"
+                      inactive-text="off"
+                      active-color="#13ce66"
+                      inactive-color="#ff4949"
+                      active-value="1"
+                      inactive-value="0"
+                      disabled
+                      @click.native="changeOnOffValue(item.equipId, item.runStatus)">
+                    </el-switch>
+                  </div>
+                </div>
+                <div style="display:flex;flex:1;font-size:13px;flex-direction:column">
+                  <!-- <div>类型：{{item.type | typeChange}}</div> -->
+                  <div>今日总能耗：{{item.totalEnergy}} kW</div>
+                </div>
+              </div>
+              
+              
+            </div>           
+            <!-- <div class="list-text">
+              类型：{{item.type | typeChange}}&nbsp;&nbsp;&nbsp;&nbsp;今日总能耗：{{item.totalEnergy}} kW     
+            </div> -->
+            <div class="list-visit">
+              <!-- <div class="list-visit-icon" @click="changeVisitLists(index)"  v-if="item.type == 1"><i class="el-icon-sort"></i></div> -->
+              <div @click="changeVisitLists(index)"  v-if="item.type == 1 && isAuth(SCOKET_DZSET)" class="donwimg"></div>
+              <transition name="bounce" mode="out-in">
+              <div v-if="showArray[index]" key="saved">
+                <div v-for="(one,index) in item.list"  :key="one.index" :class="index%2==0?'':'list-color'" class="list-visit-lists" >
+                  <div class="list-visit-name">{{item.list[index].name}}：</div>
+                  <div class="list-visit-value">{{item.list[index].value | valueChange}}</div>
+                  <div class="list-visit-unit">{{item.list[index].unit}}</div>
+                </div>
+              </div>
+              
+              <div style="height:16%;min-height:35;min-width:300px;padding:0 20px" v-else>
+                <div class="list-visit-set">
+                  <div class="list-visit-img xhimg"></div>
+                  <div style="flex:1">
+                    <el-input v-model="setInput" placeholder="请输入内容" size="mini" style="width:80%"></el-input>
+                  </div>
+                  <div style="min-width:100px">
+                    <el-button plain size="mini" @click="panelSet(item.equipId, setInput, '1503')">型号设定</el-button>
+                  </div>              
+                </div>
+                <div class="list-visit-set">
+                  <div class="list-visit-img statusimg"></div>
+                  <div style="flex:1">
+                    <el-radio-group v-model="status">
+                      <el-radio label='255'>开</el-radio>
+                      <el-radio label='0'>关</el-radio>
+                    </el-radio-group>
+                  </div>
+                  <div style="min-width:100px">
+                    <el-button plain size="mini" @click="panelSet(item.equipId, status, '1504')">开关设定</el-button>
+                  </div>              
+                </div>
+                <div class="list-visit-set">
+                  <div class="list-visit-img modeimg"></div>
+                  <div style="flex:1">
+                    <el-select v-model="mode" placeholder="请选择" size='mini' style="width:80%">
+                      <el-option
+                          v-for="item in optionMode"
+                          :key="item.value"
+                          :label="item.label"
+                          :value="item.value"
+                          >
+                      </el-option>
+                    </el-select> 
+                    <!-- <el-radio-group v-model="key.mode">
+                      <div>
+                        <el-radio label="1">制冷</el-radio>
+                        <el-radio label="2">制热</el-radio>
+                      </div>
+                      <div>
+                        <el-radio label="3">通风</el-radio>
+                        <el-radio label="4">自动</el-radio>
+                      </div> 
+                    </el-radio-group>   -->       
+                  </div>
+                  <div style="min-width:100px">
+                    <el-button plain size="mini" @click="panelSet(item.equipId, mode, '1505')">模式设定</el-button>
+                  </div>              
+                </div>
+                <div class="list-visit-set">
+                  <div class="list-visit-img tempimg"></div>
+                  <div style="flex:1">
+                    <el-select v-model="temp" placeholder="请选择" size='mini' style="width:80%">
+                      <el-option
+                          v-for="item in optionTemperature"
+                          :key="item.value"
+                          :label="item.label"
+                          :value="item.value"
+                          >
+                      </el-option>
+                    </el-select>              
+                  </div>
+                  <div style="min-width:100px">
+                    <el-button plain size="mini" @click="panelSet(item.equipId, temp, '1506')">温度设定</el-button>
+                  </div>              
+                </div>
+                <div class="list-visit-set">
+                  <div class="list-visit-img windimg"></div>
+                  <div style="flex:1">
+                    <!-- <el-radio-group v-model="key.volume">
+                      <el-radio label='1'>自动</el-radio>
+                      <el-radio label='2'>1档</el-radio>
+                    </el-radio-group> -->
+                    <el-select v-model="volume" placeholder="请选择" size='mini' style="width:80%">
+                      <el-option
+                          v-for="item in optionVolume"
+                          :key="item.value"
+                          :label="item.label"
+                          :value="item.value"
+                          >
+                      </el-option>
+                    </el-select>             
+                  </div>
+                  <div style="min-width:100px">
+                    <el-button plain size="mini" @click="panelSet(item.equipId, volume, '1507')">风速设定</el-button>
+                  </div>              
+                </div>
+                <div class="list-visit-set">
+                  <div class="list-visit-img volumeimg"></div>
+                  <div style="flex:1">
+                    <!-- <el-radio-group v-model="key.wind">
+                      <el-radio label='1'>自动摆风</el-radio>
+                      <el-radio label='2'>手动摆风</el-radio>
+                    </el-radio-group>    -->
+                    <el-select v-model="wind" placeholder="请选择" size='mini' style="width:80%">
+                      <el-option
+                          v-for="item in optionWind"
+                          :key="item.value"
+                          :label="item.label"
+                          :value="item.value"
+                          >
+                      </el-option>
+                    </el-select>      
+                  </div>
+                  <div style="min-width:100px">
+                    <el-button plain size="mini" @click="panelSet(item.equipId, wind, '1508')">风向设定</el-button>
+                  </div>              
+                </div>
+              </div> 
+              </transition>            
+              <!-- <p v-for="(one,index) in item.points"  :key="one.index" :class="index%2==0?'':'list-color'">
+                <span>{{item.points[index].anme}}:{{item.points[index].value}}{{item.points[index].unit}}</span>
+              </p>  -->
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- 群控弹框 -->
+      <el-dialog title="群控选择" :visible.sync="dialogFanVisible" class="controlDialog"  id="qkSetTable">
+        <div class="groupcontrol">
+          <div class="groupcontrol-top" style="z-index: 1">
+            <!-- <el-checkbox :indeterminate="isIndeterminate" v-model="checkAll" @change="handleCheckAllChange">全选</el-checkbox>
+            <el-checkbox-group v-model="checkboxed" @change="handleCheckedCitiesChange">
+              <el-checkbox :label="item.equipId" v-for="item in socketFloorData" :key="item.equipId">{{item.floorName}}{{item.equipName}}</el-checkbox>
+            </el-checkbox-group> -->
+            <div class="groupcontrol-footer-cont">
+              <p>开关设置</p>
+              <el-radio-group v-model="radio1">
+                <el-radio :label="1">开</el-radio>
+                <el-radio :label="0">关</el-radio>
+              </el-radio-group>
+              <el-button plain size="mini" @click="turns()" :disabled="turnBtn">设定</el-button>
+            </div>
+          </div>
+          <div class="groupcontrol-footer">
+            <el-table :data="dataControlList"  v-loading="dataListLoading" @selection-change="selectionSetHandle" :max-height="qkSetTableHeight"
+              :header-cell-style="{background:'#edeef0',color:'#000',fontWeight:'700'}" style="width: 100%;">
+              <el-table-column type="selection" header-align="center" align="center" width="50" label="序号" fixed="left">
+              </el-table-column>
+              <el-table-column type="index" header-align="center" align="center" width="50" label="序号" fixed="left">
+              </el-table-column>
+              <el-table-column prop="floorName" header-align="center" align="center" label="房间" >
+              </el-table-column>
+              <el-table-column prop="equipName" header-align="center" align="center" label="插座名称" >
+              </el-table-column>
+              <el-table-column prop="runStatus" header-align="center" align="center" label="开关状态" >
+                  <template slot-scope="scope">
+                    <el-tag v-if="scope.row.runStatus == 0" size="small" type="danger">关</el-tag>
+                    <el-tag v-else-if="scope.row.runStatus == 1" size="small">开</el-tag>
+                  </template>
+              </el-table-column>
+              <el-table-column prop="executeStatus" header-align="center" align="center" label="执行状态" >
+                  <template slot-scope="scope">
+                    <i v-if="scope.row.executeStatus == null">-</i>
+                    <i class="execute" v-if="scope.row.executeStatus == 2" ></i>
+                    <i class="success" v-else-if="scope.row.executeStatus == 0"></i>
+                    <i class="fail" v-else-if="scope.row.executeStatus == 1"  ></i>
+                  </template>
+              </el-table-column>
+            </el-table>
+            <!-- <div class="groupcontrol-footer-cont">
+              <p>开关设置</p>
+              <el-radio-group v-model="radio1">
+                <el-radio :label="0">开</el-radio>
+                <el-radio :label="1">关</el-radio>
+              </el-radio-group>
+              <el-button plain size="mini" @click="turns()">设定</el-button>
+            </div> -->
+          </div>
+        </div>
+      </el-dialog>
+      <!-- 群设弹框 -->
+      <el-dialog
+        title="群设选择"
+        :visible.sync="dialogSetVisible"
+        center="center"
+        class="socketSetAllDialog"
+        id="dzSetAll">
+        <div style="display:flex;border:1px solid #ccc;paddingTop:5px;overflow:auto">       
+          <div style="minWidth:300px;padding:6px">
+            <el-table
+            :max-height="dzTableHeight"
+            :header-cell-style="{background:'#edeef0',color:'#000',fontWeight:'700'}"
+              border
+              :data="socketTbaleChecked"
+              @selection-change="selectionChangeHandle"
+              style="width: 100%;">
+              <el-table-column
+                type="selection"
+                header-align="center" 
+                align="center">
+              </el-table-column>
+              <el-table-column
+                prop="floorName"
+                header-align="center" 
+                align="center"
+                label="房间">
+              </el-table-column>
+              <el-table-column
+                prop="equipName"
+                header-align="center" 
+                align="center"
+                label="插座">
+              </el-table-column>
+              <el-table-column
+                prop="executeStatus"
+                header-align="center" 
+                align="center"
+                width="100"
+                label="执行状态">
+                <template slot-scope="scope">
+                  <i v-if="scope.row.executeStatus == null">-</i>
+                  <i class="execute" v-else-if="scope.row.executeStatus == 2" ></i>
+                  <i class="success" v-else-if="scope.row.executeStatus == 0"></i>
+                  <i class="fail" v-else-if="scope.row.executeStatus == 1"  ></i>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+          <div style="flex:1" >
+            <el-checkbox-group v-model="checkListAll">
+            <el-form :model="socketSetDataFormAll" :rules="socketSetDataRuleAll" ref="socketSetDataFormAll" class="set-device-form setchecks"  v-loading = 'fiexdQueryAllLoading' element-loading-text="定值设置中">
+              <div class="set-device-form-left">
+                <el-form-item label="插座标号" class="set-device-form-item">
+                  <el-input v-model="socketSetDataFormAll.n0" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n0' + '-' +socketSetDataFormAll.n0"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="空调型号" class="set-device-form-item">
+                  <el-input v-model="socketSetDataFormAll.n1" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n1' + '-' +socketSetDataFormAll.n1"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="按频率刚性切除功能是否启用" class="set-device-form-item">
+                  <el-radio-group v-model="socketSetDataFormAll.n2">
+                    <el-radio label='1'>是</el-radio>
+                    <el-radio label='2'>否</el-radio>
+                  </el-radio-group>
+                  <el-checkbox :label="'n2' + '-' +socketSetDataFormAll.n2"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="快速刚性切除频率定值F1（HZ）" class="set-device-form-item">
+                  <el-input v-model="socketSetDataFormAll.n3" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n3' + '-' +socketSetDataFormAll.n3"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="快速刚性切除延时动作时间定值T1（秒）" class="set-device-form-item">
+                  <el-input v-model="socketSetDataFormAll.n4" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n4' + '-' +socketSetDataFormAll.n4"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="按频率自动恢复负荷功能是否启用" class="set-device-form-item">
+                  <el-radio-group v-model="socketSetDataFormAll.n5">
+                    <el-radio label='1'>是</el-radio>
+                    <el-radio label='2'>否</el-radio>
+                  </el-radio-group>
+                  <el-checkbox :label="'n5' + '-' +socketSetDataFormAll.n5"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="按频率自动恢复负荷频率定值F2（HZ）" class="set-device-form-item">
+                  <el-input v-model="socketSetDataFormAll.n6" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n6' + '-' +socketSetDataFormAll.n6"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="按频率自动恢复负荷延时确认时间定值T2（秒）" class="set-device-form-item">
+                  <el-input v-model="socketSetDataFormAll.n7" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n7' + '-' +socketSetDataFormAll.n7"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="空调软启停的控制" class="set-device-form-item">
+                  <el-input v-model="socketSetDataFormAll.n8" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n8' + '-' +socketSetDataFormAll.n8"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="负荷停运判断定值" class="set-device-form-item">
+                  <el-input v-model="socketSetDataFormAll.n9" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n9' + '-' +socketSetDataFormAll.n9"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="过流保护功能是否启用" class="set-device-form-item">
+                  <el-radio-group v-model="socketSetDataFormAll.n10">
+                    <el-radio label='1'>是</el-radio>
+                    <el-radio label='2'>否</el-radio>
+                  </el-radio-group>
+                  <el-checkbox :label="'n10' + '-' +socketSetDataFormAll.n10"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="插座的过流保护定值（A）" class="set-device-form-item">
+                  <el-input v-model="socketSetDataFormAll.n11" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n11' + '-' +socketSetDataFormAll.n11"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="插座的过流保护延时确认定值" class="set-device-form-item">
+                  <el-input v-model="socketSetDataFormAll.n12" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n12' + '-' +socketSetDataFormAll.n12"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="设定空调型号值" class="set-device-form-item">
+                  <el-input v-model="socketSetDataFormAll.n13" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n13' + '-' +socketSetDataFormAll.n13"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="预留定值1" class="set-device-form-item">
+                  <el-input v-model="socketSetDataFormAll.n14" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n14' + '-' +socketSetDataFormAll.n14"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="预留定值2" class="set-device-form-item">
+                  <el-input v-model="socketSetDataFormAll.n15" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n15' + '-' +socketSetDataFormAll.n15"></el-checkbox>
+                </el-form-item> 
+              </div>
+              <div class="set-device-form-right">          
+                <el-form-item label="预留定值3" class="set-device-form-item-right">
+                  <el-input v-model="socketSetDataFormAll.n16" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n16' + '-' +socketSetDataFormAll.n16"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="预留定值4" class="set-device-form-item-right">
+                  <el-input v-model="socketSetDataFormAll.n17" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n17' + '-' +socketSetDataFormAll.n17"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="预留定值5" class="set-device-form-item-right">
+                  <el-input v-model="socketSetDataFormAll.n18" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n18' + '-' +socketSetDataFormAll.n18"></el-checkbox>
+                </el-form-item> 
+                <el-form-item label="预留定值6" class="set-device-form-item-right">
+                  <el-input v-model="socketSetDataFormAll.n19" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n19' + '-' +socketSetDataFormAll.n19"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="以太网地址1段" class="set-device-form-item-right">
+                  <el-input v-model="socketSetDataFormAll.n20" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n20' + '-' +socketSetDataFormAll.n20"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="以太网地址2段" class="set-device-form-item-right">
+                  <el-input v-model="socketSetDataFormAll.n21" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n21' + '-' +socketSetDataFormAll.n21"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="以太网地址3段" class="set-device-form-item-right">
+                  <el-input v-model="socketSetDataFormAll.n22" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n22' + '-' +socketSetDataFormAll.n22"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="以太网地址4段" class="set-device-form-item-right">
+                  <el-input v-model="socketSetDataFormAll.n23" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n23' + '-' +socketSetDataFormAll.n23"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="所接入负荷类型" class="set-device-form-item-right">
+                  <el-input v-model="socketSetDataFormAll.n24" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n24' + '-' +socketSetDataFormAll.n24"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="数据上传速度" class="set-device-form-item-right">
+                  <el-input v-model="socketSetDataFormAll.n25" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n25' + '-' +socketSetDataFormAll.n25"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="夏季制冷期间柔性调控" class="set-device-form-item-right">
+                  <el-input v-model="socketSetDataFormAll.n26" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n26' + '-' +socketSetDataFormAll.n26"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="冬季制热期间柔性调控" class="set-device-form-item-right">
+                  <el-input v-model="socketSetDataFormAll.n27" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n27' + '-' +socketSetDataFormAll.n27"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="频率滑差闭锁定值（Hz/s）" class="set-device-form-item-right">
+                  <el-input v-model="socketSetDataFormAll.n28" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n28' + '-' +socketSetDataFormAll.n28"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="过热保护功能是否启用" class="set-device-form-item-right">
+                  <el-radio-group v-model="socketSetDataFormAll.n29">
+                    <el-radio label='1'>是</el-radio>
+                    <el-radio label='2'>否</el-radio>
+                  </el-radio-group>
+                  <el-checkbox :label="'n29' + '-' +socketSetDataFormAll.n29"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="插座过热保护温度定值（A）" class="set-device-form-item-right">
+                  <el-input v-model="socketSetDataFormAll.n30" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n30' + '-' +socketSetDataFormAll.n30"></el-checkbox>
+                </el-form-item>
+                <el-form-item label="插座过热保护延时确认定值" class="set-device-form-item-right">
+                  <el-input v-model="socketSetDataFormAll.n31" placeholder="" size="small"></el-input>
+                  <el-checkbox :label="'n31' + '-' +socketSetDataFormAll.n31"></el-checkbox>
+                </el-form-item>
+              </div>  
+            </el-form>
+            </el-checkbox-group>
+          </div>
+        </div>
+        <span slot="footer" class="dialog-footer">
+          <el-button type="primary" @click="socketSetDataFormSubmit('2')" :loading="socketSetBtnAll">定值设定</el-button>
+          <el-button type="info" plain @click="dialogSetVisible = false">关闭</el-button>          
+        </span>
+      </el-dialog>
+      <!-- 单个插座定值设置弹框 -->
+      <el-dialog        
+        :title="'定制设置：' + dialogTitle"
+       :visible.sync="socketSetVisible"
+       :close-on-click-modal="false"
+        center="center"
+        class="socketSetDialog">
+        <el-checkbox-group v-model="checkList">
+        <el-form :model="socketSetDataForm" :rules="socketSetDataRule" ref="socketSetDataForm" class="set-device-form setcheck" v-loading = 'fiexdQueryLoading' element-loading-text="处理中">          
+          <div class="set-device-form-left">            
+            <el-form-item label="插座标号" class="set-device-form-item">
+              <el-input v-model="socketSetDataForm.n0" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n0' + '-' +socketSetDataForm.n0"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="空调型号" class="set-device-form-item">
+              <el-input v-model="socketSetDataForm.n1" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n1' + '-' +socketSetDataForm.n1"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="按频率刚性切除功能是否启用" class="set-device-form-item">
+              <el-radio-group v-model="socketSetDataForm.n2">
+                <el-radio label='1'>是</el-radio>
+                <el-radio label='2'>否</el-radio>
+              </el-radio-group>
+              <el-checkbox :label="'n2' + '-' +socketSetDataForm.n2"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="快速刚性切除频率定值F1（HZ）" class="set-device-form-item">
+              <el-input v-model="socketSetDataForm.n3" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n3' + '-' +socketSetDataForm.n3"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="快速刚性切除延时动作时间定值T1（秒）" class="set-device-form-item">
+              <el-input v-model="socketSetDataForm.n4" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n4' + '-' +socketSetDataForm.n4"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="按频率自动恢复负荷功能是否启用" class="set-device-form-item">
+              <el-radio-group v-model="socketSetDataForm.n5">
+                <el-radio label='1'>是</el-radio>
+                <el-radio label='2'>否</el-radio>
+              </el-radio-group>
+              <el-checkbox :label="'n5' + '-' +socketSetDataForm.n5"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="按频率自动恢复负荷频率定值F2（HZ）" class="set-device-form-item">
+              <el-input v-model="socketSetDataForm.n6" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n6' + '-' +socketSetDataForm.n6"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="按频率自动恢复负荷延时确认时间定值T2（秒）" class="set-device-form-item">
+              <el-input v-model="socketSetDataForm.n7" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n7' + '-' +socketSetDataForm.n7"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="空调软启停的控制" class="set-device-form-item">
+              <el-input v-model="socketSetDataForm.n8" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n8' + '-' +socketSetDataForm.n8"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="负荷停运判断定值" class="set-device-form-item">
+              <el-input v-model="socketSetDataForm.n9" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n9' + '-' +socketSetDataForm.n9"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="过流保护功能是否启用" class="set-device-form-item">
+              <el-radio-group v-model="socketSetDataForm.n10">
+                <el-radio label='1'>是</el-radio>
+                <el-radio label='2'>否</el-radio>
+              </el-radio-group>
+              <el-checkbox :label="'n10' + '-' +socketSetDataForm.n10"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="插座的过流保护定值（A）" class="set-device-form-item">
+              <el-input v-model="socketSetDataForm.n11" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n11' + '-' +socketSetDataForm.n11"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="插座的过流保护延时确认定值" class="set-device-form-item">
+              <el-input v-model="socketSetDataForm.n12" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n12' + '-' +socketSetDataForm.n12"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="设定空调型号值" class="set-device-form-item">
+              <el-input v-model="socketSetDataForm.n13" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n13' + '-' +socketSetDataForm.n13"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="预留定值1" class="set-device-form-item">
+              <el-input v-model="socketSetDataForm.n14" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n14' + '-' +socketSetDataForm.n14"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="预留定值2" class="set-device-form-item">
+              <el-input v-model="socketSetDataForm.n15" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n15' + '-' +socketSetDataForm.n15"></el-checkbox>
+            </el-form-item> 
+          </div>
+          <div class="set-device-form-right">          
+            <el-form-item label="预留定值3" class="set-device-form-item-right">
+              <el-input v-model="socketSetDataForm.n16" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n16' + '-' +socketSetDataForm.n16"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="预留定值4" class="set-device-form-item-right">
+              <el-input v-model="socketSetDataForm.n17" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n17' + '-' +socketSetDataForm.n17"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="预留定值5" class="set-device-form-item-right">
+              <el-input v-model="socketSetDataForm.n18" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n18' + '-' +socketSetDataForm.n18"></el-checkbox>
+            </el-form-item> 
+            <el-form-item label="预留定值6" class="set-device-form-item-right">
+              <el-input v-model="socketSetDataForm.n19" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n19' + '-' +socketSetDataForm.n19"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="以太网地址1段" class="set-device-form-item-right">
+              <el-input v-model="socketSetDataForm.n20" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n20' + '-' +socketSetDataForm.n20"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="以太网地址2段" class="set-device-form-item-right">
+              <el-input v-model="socketSetDataForm.n21" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n21' + '-' +socketSetDataForm.n21"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="以太网地址3段" class="set-device-form-item-right">
+              <el-input v-model="socketSetDataForm.n22" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n22' + '-' +socketSetDataForm.n22"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="以太网地址4段" class="set-device-form-item-right">
+              <el-input v-model="socketSetDataForm.n23" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n23' + '-' +socketSetDataForm.n23"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="所接入负荷类型" class="set-device-form-item-right">
+              <el-input v-model="socketSetDataForm.n24" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n24' + '-' +socketSetDataForm.n24"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="数据上传速度" class="set-device-form-item-right">
+              <el-input v-model="socketSetDataForm.n25" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n25' + '-' +socketSetDataForm.n25"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="夏季制冷期间柔性调控" class="set-device-form-item-right">
+              <el-input v-model="socketSetDataForm.n26" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n26' + '-' +socketSetDataForm.n26"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="冬季制热期间柔性调控" class="set-device-form-item-right">
+              <el-input v-model="socketSetDataForm.n27" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n27' + '-' +socketSetDataForm.n27"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="频率滑差闭锁定值（Hz/s）" class="set-device-form-item-right">
+              <el-input v-model="socketSetDataForm.n28" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n28' + '-' +socketSetDataForm.n28"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="过热保护功能是否启用" class="set-device-form-item-right">
+              <el-radio-group v-model="socketSetDataForm.n29">
+                <el-radio label='1'>是</el-radio>
+                <el-radio label='2'>否</el-radio>
+              </el-radio-group>
+              <el-checkbox :label="'n29' + '-' +socketSetDataForm.n29"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="插座过热保护温度定值（A）" class="set-device-form-item-right">
+              <el-input v-model="socketSetDataForm.n30" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n30' + '-' +socketSetDataForm.n30"></el-checkbox>
+            </el-form-item>
+            <el-form-item label="插座过热保护延时确认定值" class="set-device-form-item-right">
+              <el-input v-model="socketSetDataForm.n31" placeholder="" size="small"></el-input>
+              <el-checkbox :label="'n31' + '-' +socketSetDataForm.n31"></el-checkbox>
+            </el-form-item>            
+          </div> 
+           
+        </el-form>
+        </el-checkbox-group>
+        <span slot="footer" class="dialog-footer">
+          <el-button type="success" @click="constantVlueQuery()" :loading="constantLoading" :disabled="disabledConstant">定值查询</el-button>  
+          <el-button type="primary" @click="socketSetDataFormSubmit('1')" :loading="socketSetBtn" :disabled="disabledSet">定值设定</el-button>
+          <el-button type="info" plain @click="socketSetVisible = false">关闭</el-button>          
+        </span>      
+      </el-dialog>
+      <!-- 执行结果弹框 -->
+      <el-dialog
+        title="执行结果"
+        :close-on-click-modal="false"
+        :visible.sync="returnVisible" >
+        <el-table :data="returnDataControlList"  v-loading="returnDataListLoading" 
+          :header-cell-style="{background:'#edeef0',color:'#000',fontWeight:'700'}" style="width: 100%;">
+          <el-table-column type="index" header-align="center" align="center" width="50" label="序号" fixed="left">
+          </el-table-column>
+          <el-table-column prop="roomName" header-align="center" align="center" label="房间" >
+          </el-table-column>
+          <el-table-column prop="name" header-align="center" align="center" label="插座名称" >
+          </el-table-column>
+          <el-table-column prop="status" header-align="center" align="center" label="开关状态" >
+              <template slot-scope="scope">
+                  <el-tag v-if="scope.row.status == 0" size="small" type="danger">关</el-tag>
+                  <el-tag v-else-if="scope.row.status == 1" size="small">开</el-tag>
+                </template>
+          </el-table-column>
+          <el-table-column prop="executeStatus" header-align="center" align="center" label="执行状态" >
+              <template slot-scope="scope">
+                  <i class="execute" v-if="scope.row.executeStatus == 0" ></i>
+                  <i class="execute" v-else-if="scope.row.executeStatus == 1"></i>
+                  <i class="execute" v-else-if="scope.row.executeStatus == 2"  ></i>
+                </template>
+          </el-table-column>
+        </el-table>
+      </el-dialog>
+    </el-row>
+  </div>
+</template>
+
+<script>
+  // import Vue from 'vue'
+  import { dateFormatter } from '@/utils/index'
+  export default {
+    data() {
+      return {
+        qkSetTableHeight: '',  // 群控弹框表格高度
+        dzTableHeight: '',  // 群设弹框左侧表格高度
+        turnBtn: false,  // 群控设定按钮
+        disabledSet: false,  // 单个定值设定
+        disabledConstant: false,  // 单个定值查询
+        constantLoading: false,  // 单个定值查询
+        socketSetBtn: false,  // 单个定值设定
+        checkListAll: [],  // 定制设置多个 复选框
+        checkList: [], // 定制设置单个 复选框
+        stationName: '',
+        load: false,
+        setInput: null,
+        status: null,
+        mode: null,
+        temp: null,
+        volume: null,
+        wind: null,
+        returnVisible: false,   // 执行结果弹框
+        returnDataControlList: [],
+        returnDataListLoading: true,
+        dataControlList: [],  // 群控弹框表格
+        socketTbaleChecked: [], // 群设弹框左侧选择列表
+        socketTbaleCheckedList: [], // 群设列表多选值
+        fiexdQueryAllLoading: false,  // 群设点击设置后loading
+        controlAllWs: null,  // 群设结果websocket
+        socketSetBtnAll: false,  // 群设按钮 loading
+        dataListLoading: false,
+        dialogSetVisible: false,
+        value: dateFormatter(new Date(), false),  // 实时负荷日期选择值
+        pickerOptions: {
+          disabledDate(time) {
+            return time.getTime() > Date.now() - 8.64e6
+          }
+        },
+        optionTemperature: [{
+            'value': '16',
+            'label': '16'
+          },{
+            'value': '17',
+            'label': '17'
+          },{
+            'value': '18',
+            'label': '18'
+          },{
+            'value': '19',
+            'label': '19'
+          },{
+            'value': '20',
+            'label': '20'
+          },{
+            'value': '21',
+            'label': '21'
+          },{
+            'value': '22',
+            'label': '22'
+          },{
+            'value': '23',
+            'label': '23'
+          },{
+            'value': '24',
+            'label': '24'
+          },{
+            'value': '25',
+            'label': '25'
+          },{
+            'value': '26',
+            'label': '26'
+          },{
+            'value': '27',
+            'label': '27'
+          },{
+            'value': '28',
+            'label': '28'
+          },{
+            'value': '29',
+            'label': '29'
+          },{
+            'value': '30',
+            'label': '30'
+          },{
+            'value': '31',
+            'label': '31'
+          }],
+        optionMode: [{
+            'value': '0',
+            'label': '自动',          
+          }, {
+            'value': '1',
+            'label': '制冷'
+          }, {
+            'value': '2',
+            'label': '除湿',          
+          }, {
+            'value': '3',
+            'label': '送风'
+          }, {
+            'value': '4',
+            'label': '制暖'
+          }],
+        optionWind: [{
+            'value': '0',
+            'label': '自动摆风',          
+          }, {
+            'value': '1',
+            'label': '手动摆风'
+          }],
+        optionVolume: [{
+            'value': '0',
+            'label': '自动'
+          }, {
+            'value': '1',
+            'label': '1档'
+          }, {
+            'value': '2',
+            'label': '2档'
+          }, {
+            'value': '3',
+            'label': '3档'
+          }],
+        showArray: [],
+        // 单个插座设置弹框
+        socketSetVisible: false,
+        dialogTitle: null,
+        dialogTitleId: null,
+        socketSetDataForm: {
+          "n0": null,
+          "n1": null,
+          "n2": null,
+          "n3": null,
+          "n4": null,
+          "n5": null,
+          "n6": null,
+          "n7": null,
+          "n8": null,
+          "n9": null,
+          "n10": null,
+          "n11": null,
+          "n12": null,
+          "n13": null,
+          "n14": null,
+          "n15": null,
+          "n16": null,
+          "n17": null,
+          "n18": null,
+          "n19": null,
+          "n20": null,
+          "n21": null,
+          "n22": null,
+          "n23": null,
+          "n24": null,
+          "n25": null,
+          "n26": null,
+          "n27": null,
+          "n28": null,
+          "n29": null,
+          "n30": null,
+          "n31": null,
+        },
+        socketSetDataFormAll: {
+          "n0": null,
+          "n1": null,
+          "n2": null,
+          "n3": null,
+          "n4": null,
+          "n5": null,
+          "n6": null,
+          "n7": null,
+          "n8": null,
+          "n9": null,
+          "n10": null,
+          "n11": null,
+          "n12": null,
+          "n13": null,
+          "n14": null,
+          "n15": null,
+          "n16": null,
+          "n17": null,
+          "n18": null,
+          "n19": null,
+          "n20": null,
+          "n21": null,
+          "n22": null,
+          "n23": null,
+          "n24": null,
+          "n25": null,
+          "n26": null,
+          "n27": null,
+          "n28": null,
+          "n29": null,
+          "n30": null,
+          "n31": null,
+        },
+        socketSetDataRule: {},
+        socketSetDataRuleAll: {},
+        setInput: '',  // 空调配置页面型号设定
+        // 群控页面
+        radio1: 1,
+        checkboxed: [],
+        socketFloorData: [],
+        checkAll: [],
+        isIndeterminate: true,
+        dialogFanVisible: false,
+        floorListWs: null, // 楼层信息列表websocket
+        floorWs: null,  // 实时负荷折线图websocket
+        typeOptions: [
+        {
+          value: '0',
+          label: '全部'
+        },{
+          value: '1',
+          label: '空调'
+        },{
+          value: '2',
+          label: '热水器'
+        }
+        ,{
+          value: '3',
+          label: '风机'
+        },{
+          value: '4',
+          label: '水泵'
+        }],
+        typeValue: '0',
+        totalData: null,
+        topData: [],
+        options: [], // 楼层下拉框
+        floorValue: '',
+        input5: '', // 搜索框
+        saveEquipId: null, // 保存操作的设备Id
+        fiexdQueryWs: null, // 单个页面定值查询websocket
+        fiexdQueryLoading: false, // 单个页面定值查询loading
+        fiexdSendWs: null,  // 单个页面定值设置发送消息成功后的websocket
+        // items: [],
+        // info:'',
+        // flag:false,
+        /* value:dateFormatter(new Date(), false),
+         // 设置选择今天及以前的时间
+        pickerOptions: {
+          disabledDate(time) {
+            return time.getTime() > Date.now() - 8.64e6
+          }
+        }, */
+        a: []
+      }
+    },
+    created () {
+      console.log(this.$route.query.equipId)
+      if(this.$route.query.equipId != undefined) {
+        sessionStorage.setItem('equipId', this.$route.query.equipId)
+        sessionStorage.setItem('name', this.$route.query.name)
+        this.stationName = sessionStorage.getItem('name')
+      }
+      // console.log(sessionStorage.getItem('equipId'))
+    },
+    watch: {
+      'value': 'initEcharts',
+      'socketSetVisible': function (val) {
+        if(val == false) {
+          if(this.fiexdQueryWs) {
+            this.fiexdQueryWs.close()
+          }
+          if(this.fiexdSendWs) {
+            this.fiexdSendWs.close()
+          }
+        }
+      },
+      'dialogSetVisible': function (val) {
+        if(val == false) {
+          if(this.fiexdSendWs) {
+            this.fiexdSendWs.close()
+          }
+        }
+      },
+      'dialogFanVisible': function (val) {
+        if(val == false) {
+          if(this.controlAllWs) {
+            this.controlAllWs.close()
+          }
+        }
+      },
+      'checkList': function() {
+        console.log(this.checkList)
+      }
+    },
+    mounted() {
+      console.log(sessionStorage.getItem('name'))
+      Promise.all([this.getFloorData()]).then((data)=> {
+        this.list()
+      })
+      this.aaa()           
+      this.initEcharts()
+      // this.cz_info()
+      this.initPie()
+      this.getTop()      
+      window.onresize = function () {
+        if(document.getElementById('socketsFloor')){
+          document.getElementById('socketsFloor').style.height = (window.innerHeight - 150) + 'px'
+          echarts.init(document.getElementById('echartsFloor')).resize()
+          echarts.init(document.getElementById('pieFloor')).resize()
+            // electricity 
+        }
+      }
+    },
+    filters: {
+      typeChange: function(val) {
+        if(val == 1) {
+          return '空调'
+        } else if(val == 2) {
+          return '热水器'
+        }
+      },
+      valueChange: function(val) {
+        if(val == null) {
+          return '-'
+        } else {
+          return val
+        }
+      }
+    },
+    methods: {      
+      // 群控按钮
+      showFloorDailog () {
+        this.dialogFanVisible = true
+        this.getDataControlList()
+        this.qkSetTableHeight = ((document.getElementById('qkSetTable').style.height - 115) * 0.8)-40
+      },
+      // 群控弹框表格
+      getDataControlList () {
+        this.dataListLoading = true
+        this.$http({
+          url: this.$http.adornUrl('/admin/tequipoutlet/groupcontrol'),
+          method: 'post',
+          data: this.$http.adornData({
+            'stationId': sessionStorage.getItem('equipId'),
+            'floorId': this.floorValue,
+            'type': this.typeValue,
+            'equipName': this.input5,
+            'runStatus': null
+          }),
+        }).then(({ data }) => {
+          if (data && data.code === 0) {
+            this.dataControlList = data.info
+            this.dataListLoading = false
+          }
+        })
+      },
+      // 群控表格多选按钮
+      selectionSetHandle (val) {
+        console.log(val)
+        this.checkboxed = val
+      },
+      // 群控页面设定按钮
+      turns () {
+        console.log(this.checkboxed)
+        console.log(this.radio1)
+        if(this.checkboxed.length == 0) {
+          this.$message({
+            message: '请勾选要设置的设备',
+            type: 'warning',
+            duration: 1500,
+            onClose: () => {
+            }
+          })
+        } else {
+          this.$confirm('是否继续?', '提示', {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning'
+          }).then(() => {
+            // console.log(this.checkboxed)
+            this.turnBtn = true
+            let equipIds = []
+            let equipId = []
+            for (let i = 0; i < this.checkboxed.length; i++) {
+              equipIds.push(this.checkboxed[i].id)
+              equipId.push(this.checkboxed[i].equipId)
+            }
+            console.log(equipIds)
+            this.$http({
+              url: this.$http.adornUrl('/admin/tequipoutlet/groupcontrol'),
+              method: 'post',
+              data: this.$http.adornData({
+                'equipIds': equipId,
+                'runStatus': this.radio1.toString()
+              }),
+            }).then(({ data }) => {
+              if (data && data.code === 0) {
+                /* this.$message({
+                  message: '操作成功',
+                  type: 'success',
+                  duration: 1500,
+                  onClose: () => {
+                    // this.dialogFanVisible = false
+                  }
+                }) */
+                for( let i=0;i<this.dataControlList.length;i++) {
+                  for(let j=0;j<this.checkboxed.length;j++) {
+                    if(this.checkboxed[j].equipId == this.dataControlList[i].equipId) {
+                      this.dataControlList[i].executeStatus = 2
+                    }
+                  }
+                }
+                let _this = this
+                setTimeout(()=>{
+                  console.log(_this.socketSetBtnAll)
+                  if(_this.turnBtn == true) {
+                    _this.turnBtn = false
+                    _this.$message({
+                      message: '设置失败',
+                      type: 'error',         
+                      duration: 1500,
+                      onClose: () => {
+                        let _this = this
+                        _this.controlAllWs.close()
+                        _this.dataControlList.map(e => {
+                          if(e.executeStatus == 2) {
+                            e.executeStatus = 1
+                          }
+                        })
+                      }
+                    })
+                  }
+                },30000) 
+                
+                let token = this.$cookie.get('token')
+                // 初始化一个 WebSocket 对象
+                _this.controlAllWs = new WebSocket(window.SITE_CONFIG.wsBaseUrl + token + "/outlet" + "/groupcontrol");
+                // _this.fiexdSendWs = new WebSocket("Ws://123.207.167.163:9010/ajaxchattest");
+                _this.controlAllWs.last_health_time = -1; // 上一次心跳时间
+                _this.controlAllWs.keepalive = function() { 
+                  let time = new Date().getTime();
+                  if(_this.controlAllWs.last_health_time !== -1 && time - _this.controlAllWs.last_health_time > 20000) { // 不是刚开始连接 并且 当前时间距离上次成功心跳的时间超过20秒
+                    _this.controlAllWs.close() 
+                  } else { // 如果断网了，fiexdSendWs.send会无法发送消息出去。fiexdSendWs.bufferedAmount不会为0。 
+                    if(_this.controlAllWs.bufferedAmount === 0 && _this.controlAllWs.readyState === 1) { 
+                      _this.controlAllWs.send('ping'); 
+                      _this.controlAllWs.last_health_time = time; 
+                    } 
+                  }
+                }
+
+                if(_this.controlAllWs) {
+                  let reconnect = 0; //重连的时间 
+                  let reconnectMark = false; //是否重连过 
+                  /* this.setState({ notificationSocket: true }) */
+                  // 建立 web socket 连接成功触发事件
+                  _this.controlAllWs.onopen = function () {
+                    _this.controlAllWs.send(equipIds)
+                    reconnect = 0; 
+                    reconnectMark = false; 
+                    _this.controlAllWs.receiveMessageTimer = setTimeout(() => {
+                      _this.controlAllWs.close();
+                    }, 30000); // 30s没收到信息，代表服务器出问题了，关闭连接。如果收到消息了，重置该定时器。
+                    if(_this.controlAllWs.readyState === 1) { // 为1表示连接处于open状态
+                      _this.controlAllWs.keepAliveTimer = setInterval(() => {
+                        _this.controlAllWs.keepalive();
+                      }, 1000)
+                    }
+                  };
+                  _this.controlAllWs.onerror = () => {
+                    // console.error('onerror')
+                  }
+                  // 接收服务端数据时触发事件
+                  _this.controlAllWs.onmessage = function (evt) {
+                    //console.log(evt)               
+                    if((evt.data)!="pong"){
+                      let datas = JSON.parse(evt.data)
+                      console.log(_this.dataControlList)
+                      console.log(datas)
+                      _this.dataControlList.map(e => {
+                        if(e.id == datas.id) {  // 0 成功； 1失败
+                          e.executeStatus = datas.value
+                          if(datas.value == 0) {
+                            e.runStatus = _this.radio1 == 0 ? 0 : 1
+                          } else if(datas.value == 1) {}                        
+                        }
+                      })
+                      _this.dataControlList.map(e => {
+                        if(e.executeStatus != 2) {
+                          _this.controlAllWs.close()
+                          _this.turnBtn = false
+                        }
+                      })
+                    }
+                    
+                    // console.log(_this.items)              
+                    // 收到消息，重置定时器 
+                    clearTimeout(_this.controlAllWs.receiveMessageTimer);
+                    _this.controlAllWs.receiveMessageTimer = setTimeout(() => {
+                      _this.controlAllWs.close();
+                    }, 30000); // 30s没收到信息，代表服务器出问题了，关闭连接。
+                  };
+
+                  // 断开 web socket 连接成功触发事件
+                  _this.controlAllWs.onclose = function () {
+                    clearTimeout(_this.controlAllWs.receiveMessageTimer); 
+                    clearInterval(_this.controlAllWs.keepAliveTimer); 
+                    if(!reconnectMark) { // 如果没有重连过，进行重连。 
+                      reconnect = new Date().getTime(); 
+                      reconnectMark = true; 
+                    } 
+                    let tempcontrolAllWs = _this.controlAllWs; // 保存_this.buildListWs对象 
+                    if(new Date().getTime() - reconnect >= 10000) { // 10秒中重连，连不上就不连了 
+                      _this.fiexdSendWs.close(); 
+                    } else { 
+                      _this.controlAllWs = new WebSocket(window.SITE_CONFIG.wsBaseUrl + token + "/outlet" + "/groupcontrol");
+                      _this.controlAllWs.onopen = tempcontrolAllWs.onopen; 
+                      _this.controlAllWs.onmessage = tempcontrolAllWs.onmessage;
+                      _this.controlAllWs.onerror = tempcontrolAllWs.onerror; 
+                      _this.controlAllWs.onclose = tempcontrolAllWs.onclose; 
+                      _this.controlAllWs.keepalive = tempcontrolAllWs.keepalive; 
+                      _this.controlAllWs.last_health_time = -1; 
+                    }
+                  };
+                }
+              }
+            })
+          })
+        }
+        
+      },
+      // 群设按钮
+      showSetDailog () {
+        this.dialogSetVisible = true
+        if(this.fiexdSendWs) {
+          this.fiexdSendWs.close()
+        }
+        this.fiexdQueryAllLoading = false
+        this.socketSetBtnAll = false
+        this.checkListAll = []
+        this.getSocketTbaleChecked()
+        this.dzTableHeight = document.getElementById('dzSetAll').style.height - 150
+      },
+      // 群设弹框 选择列表
+      getSocketTbaleChecked () {
+        this.$http({
+          url: this.$http.adornUrl('/admin/tequipoutlet/groupset'),
+          method: 'post',
+          data: this.$http.adornData({
+            'stationId': sessionStorage.getItem('equipId'),
+            'floorId': this.floorValue,
+            'type': this.typeValue,
+            'equipName': this.input5
+          }),
+        }).then(({ data }) => {
+          if (data && data.code === 0) {
+            this.socketTbaleChecked = data.info
+          }
+        })
+      },
+      // 群设页面 多选表格选择事件
+      selectionChangeHandle (val) {
+        console.log(val)
+        this.socketTbaleCheckedList = val
+      },
+      // 群设页面定值设置按钮
+      /* socketSetDataFormAllSubmit () {
+        console.log(this.socketSetDataFormAll)
+        this.$http({
+          url: this.$http.adornUrl('/admin/tequipoutlet/fixedinstall'),
+          method: 'post',
+          data: this.$http.adornData({
+          }),
+        }).then(({ data }) => {
+          if(data && data.code === 0) {
+
+          }
+        })
+      }, */
+      // 页面下方 面板开关操作
+      changeOnOffValue (equipId, onOffValue) {
+        console.log(equipId, onOffValue)
+        let arr = []
+        arr.push(equipId)
+        this.$confirm('是否继续?', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }).then(() => {
+          this.$http({
+            url: this.$http.adornUrl('/admin/tequipoutlet/control'),
+            method: 'post',
+            data: this.$http.adornData({
+              'id': JSON.parse(window.sessionStorage.getItem('userInfo')).orgId,  // 组织机构ID
+              'type': '2',
+              'runStatus': onOffValue == 0 ? '1' : '0',
+              'list': arr
+            }),
+          }).then(({ data }) => {
+            if (data && data.code === 0) {
+              let _this = this
+              this.saveEquipId = equipId
+              this.load = true
+              setTimeout(()=>{
+                if(this.load == true) {
+                  this.load = false
+                  this.$message({
+                    message: '操作失败',
+                    type: 'error',
+                    duration: 1500,
+                    onClose: () => {
+                    }
+                  })
+                }
+              },30000)
+            }
+          })
+        })
+      },
+      // 执行结果弹框
+      /* getReturnDataControlList () {
+        this.$http({
+          url: this.$http.adornUrl('/returnDataControlList/list'),
+          method: 'post',
+          data: this.$http.adornData({
+          }),
+        }).then(({ data }) => {
+          if (data && data.code === 0) {
+            this.returnDataControlList = data.list
+          }
+        })
+      }, */
+      // 页面下方 面板设定操作
+      panelSet(equipId, val, name) {
+        console.log(equipId, val, name)
+        console.log(val)
+        if(val == '' || val == null) {
+          this.$message({
+            message: '请设置操作的值',
+            type: 'error',
+            duration: 1500,
+            onClose: () => {
+            }
+          })   
+        } else {
+          this.$confirm('是否继续?', '提示', {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning'
+          }).then(() => {
+            
+            let changed = {}
+            changed['equip'] = equipId
+            changed['point'] = name
+            changed['value'] = val
+            console.log(changed)
+            this.$http({
+              url: this.$http.adornUrl('/admin/tequipoutlet/outletAirConditioningSet'),
+              method: 'post',
+              data: this.$http.adornData(changed),
+            }).then(({ data }) => {
+              if(data && data.code === 0) {
+                this.$message({
+                  message: '操作成功',
+                  type: 'success',
+                  duration: 1500,
+                  onClose: () => {
+                  }
+                })
+              }
+            })       
+          })
+        }
+        
+      },
+      // 单个按钮切换面板
+      changeVisitLists (index) {
+        console.log(index)
+        console.log(this.showArray)
+        this.$set(this.showArray, index, !this.showArray[index])      
+      },
+      // 单个插座定值设定弹框
+      showSocketSet (equipName, equipId) {
+        console.log(equipName, equipId)
+        this.socketSetVisible = true
+        this.fiexdQueryLoading = false
+        this.constantLoading = false
+        this.disabledConstant = false
+        this.disabledSet = false
+        this.checkList = []
+        this.socketSetDataForm = []
+        this.dialogTitle = equipName
+        this.dialogTitleId = equipId
+        if(this.fiexdQueryWs) {
+          this.fiexdQueryWs.close()
+        }
+        if(this.fiexdSendWs) {
+          this.fiexdSendWs.close()
+        }
+      }, 
+      // 单个页面定值查询按钮
+      constantVlueQuery () {
+        console.log(this.dialogTitleId)
+        this.$http({
+          url: this.$http.adornUrl('/admin/tequipoutlet/fixedquery'),
+          method: 'post',
+          data: this.$http.adornData({
+            "scada" : null,   //前置标识
+            "data_type" : null,    //报文类型码【定值查询】
+            "data_time" : null,   //数据产生时间
+            "comms" : [ {   //通信设备集
+              "comm" : null,    //通信设备标识
+              "param" : {
+                "group" : "1",   //定值参数组号
+                "index" : "0"    //定值对象序号
+              },
+              "datas" : [ {
+                "equip" : this.dialogTitleId    //设备标识
+              } ]
+            } ]
+          }),
+        }).then(({ data }) => {
+          if(data && data.code === 0) {
+            let _this = this
+            _this.fiexdQueryLoading = true
+            _this.constantLoading = true
+            _this.disabledSet = true
+            setTimeout(()=>{
+              if(this.fiexdQueryLoading == true) {
+                this.fiexdQueryLoading = false
+                this.constantLoading = false
+                this.disabledSet = false
+                this.$message({
+                  message: '查询失败',
+                  type: 'error',
+                  duration: 1500,
+                  onClose: () => {
+                    let _this = this
+                    _this.fiexdQueryWs.close()
+                  }
+                })
+              }
+            },30000)
+            if ('WebSocket' in window) {
+                let arrId = []
+                for (let i=0;i<32;i++) {
+                  arrId.push(this.dialogTitleId + '-' + i)
+                }
+                console.log(arrId)
+                let token = _this.$cookie.get('token')
+                // this.ws1 = new WebSocket("wss://echo.websocket.org");
+                _this.fiexdQueryWs = new WebSocket(window.SITE_CONFIG.wsBaseUrl + token + "/outlet" + "/fixedquery");
+                _this.fiexdQueryWs.onopen = function (evt) {
+                  _this.fiexdQueryWs.send(arrId);
+                };
+                _this.fiexdQueryWs.onmessage = function (evt) {
+                  /* let data = [{
+                    equipId: "32011500010000400000001",
+                    pointId: "0",
+                    value: "11"
+                  }, {
+                    equipId: "32011500010000400000001",
+                    pointId: "1",
+                    value: "22"
+                  }] */
+                  let data = JSON.parse(evt.data)
+                  _this.fiexdQueryLoading = false
+                  _this.constantLoading = false
+                  _this.$message({
+                    message: '查询成功',
+                    type: 'success',
+                    duration: 1500,
+                    onClose: () => {
+                      console.log(_this.socketSetDataForm)
+                      console.log(data)
+                      for(let i=0;i<data.length;i++) {
+                        let pId = 'n'+data[i].pointId
+                        console.log(pId)
+                        _this.$set(_this.socketSetDataForm, pId, data[i].value)
+                        _this.fiexdQueryWs.close()
+                      }
+                    }
+                  })
+                };
+                _this.fiexdQueryWs.onclose = function (evt) {
+                  // console.log("Connection closed.");
+                };
+              } else {
+                alert('当前浏览器 Not support websocket')
+              }
+            } else {
+              _this.fiexdQueryWs.close()
+            }
+        })
+      },
+      // 单个/多个页面定值设置按钮 val = 1 单个 val = 2 多个
+      socketSetDataFormSubmit (val) {
+        
+        let pointArr = [], datas = [], equipArr = [],
+            pointArrAll = [], datasAll = [], equipArrAll = [],
+            obj = this.checkList,
+            objAll = this.checkListAll
+        if(val == 1) {
+          if(this.checkList.length == 0) {
+            this.$message({
+              message: '请勾选要设置的定值',
+              type: 'warning',
+              duration: 1500,
+              onClose: () => {
+              }
+            })
+          } else {
+            for(let item of obj) {
+              if(item.split('-')[1] != 'null' && item.split('-')[1] != 'undefined') {
+                pointArr.push({'point':item.split('-')[0].substr(1),'value':item.split('-')[1]})
+              }
+            }
+            console.log(pointArr)
+            /* for(let item in obj) {
+              if(obj[item] != null) {
+                pointArr.push({'point':item.substr(1),'value':obj[item]})
+              }
+            } */
+            if(pointArr.length > 0) {
+              datas = [{
+                      "equip": this.dialogTitleId,  //设备标识，为广播发送时无此节点且只有一组data
+                      "data": pointArr
+                  }]
+            } else {
+              this.$message({
+                message: '需设置的定值不能为空',
+                type: 'warning',
+                duration: 1500,
+                onClose: () => {
+                }
+              })
+            }
+            
+          }
+          
+        } else if(val == 2) {
+          console.log(this.socketTbaleCheckedList)
+          console.log(this.checkListAll)
+          if(this.socketTbaleCheckedList.length > 0 && this.checkListAll.length > 0) {
+            for(let item of objAll) {
+              if(item.split('-')[1] != 'null' && item.split('-')[1] != 'undefined') {
+                pointArrAll.push({'point':item.split('-')[0].substr(1),'value':item.split('-')[1]})
+              }
+            }
+            console.log(pointArrAll)
+            if(pointArrAll.length > 0) {
+              for( let i=0;i<this.socketTbaleCheckedList.length;i++) {
+                datas.push({"equip": this.socketTbaleCheckedList[i].equipId,"data": pointArrAll})
+              }
+            } else {
+              this.$message({
+                message: '需设置的定值不能为空',
+                type: 'warning',
+                duration: 1500,
+                onClose: () => {
+                }
+              })
+            }
+          } else if(this.socketTbaleCheckedList.length == 0 && this.checkListAll.length > 0) {
+            this.$message({
+              message: '请勾选要设置的设备',
+              type: 'warning',
+              duration: 1500,
+              onClose: () => {
+              }
+            })
+          } else if(this.socketTbaleCheckedList.length > 0 && this.checkListAll.length == 0) {
+            this.$message({
+              message: '请勾选要设置的定值',
+              type: 'warning',
+              duration: 1500,
+              onClose: () => {
+              }
+            })
+          } else if(this.socketTbaleCheckedList.length == 0 && this.checkListAll.length == 0) {
+            this.$message({
+              message: '请勾选要设置的设备和定值',
+              type: 'warning',
+              duration: 1500,
+              onClose: () => {
+              }
+            })
+          }
+        }
+        if(datas.length > 0) {
+          this.$http({
+            url: this.$http.adornUrl('/admin/tequipoutlet/fixedinstall'),
+            method: 'post',
+            data: this.$http.adornData({
+              "scada":null,   //前置标识
+              "data_type":null,    //报文类型码【定值设置】
+              "data_time":null,   //数据产生时间
+              "comms":[     //通信设备集
+                {
+                  "comm":"1",  //通信设备标识
+                  "param":{
+                    "group ":"1", //定值参数组号
+                    "broadcast":"0" //是否为广播发送0：否，1：是
+                  },
+                  "datas": datas
+                }
+              ]
+            }),
+          }).then(({ data }) => {
+            if(data && data.code === 0) {
+              let _this = this, equipIdArr = []
+              let token = _this.$cookie.get('token')
+              if(val == 1) {
+                _this.fiexdQueryLoading = true
+                _this.disabledConstant = true
+                _this.socketSetBtn = true
+                equipIdArr.push(this.dialogTitleId)
+                setTimeout(()=>{
+                  if(_this.fiexdQueryLoading == true) {
+                    _this.disabledConstant = false
+                    _this.socketSetBtn = false
+                    _this.fiexdQueryLoading = false
+                    _this.constantLoading = false
+                    _this.disabledSet = false
+                    _this.$message({
+                      message: '设置失败',
+                      type: 'error',
+                      duration: 1500,
+                      onClose: () => {
+                        let _this = this
+                        _this.fiexdSendWs.close()
+                      }
+                    })
+                  }
+                },30000)
+              } else if (val == 2) {
+                _this.fiexdQueryAllLoading = true
+                _this.socketSetBtnAll = true
+                for( let i=0;i<_this.socketTbaleCheckedList.length;i++) {
+                  equipIdArr.push(_this.socketTbaleCheckedList[i].equipId)
+                  for(let j=0;j<_this.socketTbaleChecked.length;j++) {
+                    if(_this.socketTbaleChecked[j].equipId == _this.socketTbaleCheckedList[i].equipId) {
+                      _this.socketTbaleChecked[j].executeStatus = 2
+                    }
+                  }
+                }
+                setTimeout(()=>{
+                  if(_this.fiexdQueryAllLoading == true) {
+                    _this.fiexdQueryAllLoading = false
+                    _this.socketSetBtnAll = false
+                    _this.$message({
+                      message: '设置失败',
+                      type: 'error',         
+                      duration: 1500,
+                      onClose: () => {
+                        let _this = this
+                        _this.fiexdSendWs.close()
+                        _this.socketTbaleChecked.map(e => {
+                          if(e.executeStatus == 2) {
+                            e.executeStatus = 1
+                          }
+                        })
+                      }
+                    })
+                  }
+                },30000)           
+              }                             
+              // 初始化一个 WebSocket 对象
+              _this.fiexdSendWs = new WebSocket(window.SITE_CONFIG.wsBaseUrl + token + "/outlet" + "/fixedinstall");
+              // _this.fiexdSendWs = new WebSocket("Ws://123.207.167.163:9010/ajaxchattest");
+              _this.fiexdSendWs.last_health_time = -1; // 上一次心跳时间
+              _this.fiexdSendWs.keepalive = function() { 
+                let time = new Date().getTime();
+                if(_this.fiexdSendWs.last_health_time !== -1 && time - _this.fiexdSendWs.last_health_time > 20000) { // 不是刚开始连接 并且 当前时间距离上次成功心跳的时间超过20秒
+                  _this.fiexdSendWs.close() 
+                } else { // 如果断网了，fiexdSendWs.send会无法发送消息出去。fiexdSendWs.bufferedAmount不会为0。 
+                  if(_this.fiexdSendWs.bufferedAmount === 0 && _this.fiexdSendWs.readyState === 1) { 
+                    _this.fiexdSendWs.send('ping'); 
+                    _this.fiexdSendWs.last_health_time = time; 
+                  } 
+                }
+              }
+
+              if(_this.fiexdSendWs) {
+                let reconnect = 0; //重连的时间 
+                let reconnectMark = false; //是否重连过 
+                /* this.setState({ notificationSocket: true }) */
+                // 建立 web socket 连接成功触发事件
+                _this.fiexdSendWs.onopen = function () {
+                  _this.fiexdSendWs.send(equipIdArr)
+                  reconnect = 0; 
+                  reconnectMark = false; 
+                  _this.fiexdSendWs.receiveMessageTimer = setTimeout(() => {
+                    _this.fiexdSendWs.close();
+                  }, 30000); // 30s没收到信息，代表服务器出问题了，关闭连接。如果收到消息了，重置该定时器。
+                  if(_this.fiexdSendWs.readyState === 1) { // 为1表示连接处于open状态
+                    _this.fiexdSendWs.keepAliveTimer = setInterval(() => {
+                      _this.fiexdSendWs.keepalive();
+                    }, 1000)
+                  }
+                };
+                _this.fiexdSendWs.onerror = () => {
+                  // console.error('onerror')
+                }
+                // 接收服务端数据时触发事件
+                _this.fiexdSendWs.onmessage = function (evt) {
+                  //console.log(evt)               
+                  if((evt.data)!="pong"){
+                    let receive = JSON.parse(evt.data)
+                    if(val == 1) {
+                      _this.fiexdQueryLoading = false
+                      _this.disabledConstant = false
+                      _this.socketSetBtn = false
+                      if(receive[0].value == '0') {
+                        _this.$message({
+                          message: '设置失败',
+                          type: 'error',
+                          duration: 1500,
+                          onClose: () => {
+                            _this.fiexdSendWs.close()
+                          }
+                        })
+                      } else {                  
+                        _this.$message({
+                          message: '设置成功',
+                          type: 'success',
+                          duration: 1500,
+                          onClose: () => {
+                            _this.fiexdSendWs.close()
+                          }
+                        })
+                      }
+                    } else if(val == 2) {
+                      let datas = JSON.parse(evt.data)
+                      console.log(_this.socketTbaleChecked)
+                      console.log(datas)
+                      datas.map(v => {
+                        _this.socketTbaleChecked.map(e => {
+                          if(e.equipId == v.equipId) {
+                            e.executeStatus = v.value
+                          }
+                        })
+                      })
+                      _this.socketTbaleChecked.map(e => {
+                        if(e.executeStatus != 2) {
+                          _this.fiexdQueryLoading = false
+                          _this.fiexdSendWs.close()
+                        }
+                      })
+                      console.log(_this.socketTbaleChecked)                  
+                    }
+                  }
+                  
+                  // console.log(_this.items)              
+                  // 收到消息，重置定时器 
+                  clearTimeout(_this.fiexdSendWs.receiveMessageTimer);
+                  _this.fiexdSendWs.receiveMessageTimer = setTimeout(() => {
+                    _this.fiexdSendWs.close();
+                  }, 30000); // 30s没收到信息，代表服务器出问题了，关闭连接。
+                };
+
+                // 断开 web socket 连接成功触发事件
+                _this.fiexdSendWs.onclose = function () {
+                  clearTimeout(_this.fiexdSendWs.receiveMessageTimer); 
+                  clearInterval(_this.fiexdSendWs.keepAliveTimer); 
+                  if(!reconnectMark) { // 如果没有重连过，进行重连。 
+                    reconnect = new Date().getTime(); 
+                    reconnectMark = true; 
+                  } 
+                  let tempfiexdSendWs = _this.fiexdSendWs; // 保存_this.buildListWs对象 
+                  if(new Date().getTime() - reconnect >= 10000) { // 10秒中重连，连不上就不连了 
+                    _this.fiexdSendWs.close(); 
+                  } else { 
+                    _this.fiexdSendWs = new WebSocket(window.SITE_CONFIG.wsBaseUrl + token + "/outlet" + "/fixedinstall");
+                    _this.fiexdSendWs.onopen = tempfiexdSendWs.onopen; 
+                    _this.fiexdSendWs.onmessage = tempfiexdSendWs.onmessage;
+                    _this.fiexdSendWs.onerror = tempfiexdSendWs.onerror; 
+                    _this.fiexdSendWs.onclose = tempfiexdSendWs.onclose; 
+                    _this.fiexdSendWs.keepalive = tempfiexdSendWs.keepalive; 
+                    _this.fiexdSendWs.last_health_time = -1; 
+                  }
+                };
+              }
+            }
+          })
+        }
+        
+      },
+      // 获取楼层
+      getFloorData () {
+        let that = this 
+        let p = new Promise(function(resolve, reject){ 
+          that.$http({
+            url: that.$http.adornUrl('/admin/tfloor/floors'),
+            method: 'post',
+            data: that.$http.adornData({
+              'stationId': sessionStorage.getItem('equipId').toString(),
+            })
+          }).then(({ data }) => {
+            if (data && data.code === 0) {
+              that.options = data.list
+              // console.log(that.floorValue)
+              if(that.floorValue == '') {
+                that.floorValue = data.list[0].value
+              }
+              resolve(data)
+            }
+          })          
+        })
+        return p
+      },
+      // 设备运行状态
+      initPie () {
+        this.$http({
+          url: this.$http.adornUrl('/admin/tequipoutlet/info'),
+          method: 'post',
+          data: this.$http.adornData({
+            'statisticsObjType': 2,
+            'statisticsObjId': sessionStorage.getItem('equipId')
+          })
+        }).then(({ data }) => {
+          if (data && data.code === 0) {
+            let datas = data.info
+            if(document.getElementById('pieFloor')) {
+              let pie = echarts.init(document.getElementById('pieFloor'))
+              let option = {
+                tooltip : {
+                    trigger: 'item',
+                    formatter: "{a} <br/>{b} : {c} ({d}%)"
+                },          
+                legend: {
+                    type: 'scroll',
+                    orient: 'vertical',
+                    y: 'bottom',
+                    data: [
+                      {
+                        name:'运行数量',
+                        icon:'circle',
+                      },
+                      {
+                        name:'空闲数量',
+                        icon:'circle'
+                      },{
+                        name:'故障数量',
+                        icon:'circle'
+                      }
+                    ],
+                    formatter:  function(name){
+                      var target;
+                      for (var i = 0, l = datas.length; i < l; i++) {
+                        if (datas[i].name == name) {
+                            target = datas[i].value;
+                            }
+                        }
+                      var arr = [
+                        name + target + '台'
+                      ]
+                      return arr.join('\n')
+                    },
+                },
+                series : [
+                    {
+                      label: {
+                        show: true,
+                        position: "outside",
+                        textStyle: {                       
+                        },
+                        formatter : function (e) {
+                          var newStr=" ";
+                          var start,end;
+                          var name_len=e.name.length;    　　　　　　　　　　　　   //每个内容名称的长度
+                          var max_name=2;    　　　　　　　　　　　　　　　　　　//每行最多显示的字数
+                          var new_row = Math.ceil(name_len / max_name); 　　　　// 最多能显示几行，向上取整比如2.1就是3行
+                          if(name_len>max_name){ 　　　　　　　　　　　　　　  //如果长度大于每行最多显示的字数
+                            for (var i=0;i<new_row;i++) { 　　　　　　　　　　　   //循环次数就是行数
+                              var old='';    　　　　　　　　　　　　　　　　    //每次截取的字符
+                              start=i*max_name;    　　　　　　　　　　     //截取的起点
+                              end=start+max_name;    　　　　　　　　　  //截取的终点
+                              if (i==new_row-1) {    　　　　　　　　　　　　   //最后一行就不换行了
+                                old=e.name.substring(start);
+                              }else{
+                                old=e.name.substring(start,end)+"\n";    
+                              }
+                              newStr+=old; //拼接字符串
+                            }
+                          }else{                                          //如果小于每行最多显示的字数就返回原来的字符串
+                            newStr=e.name; 
+                          }
+                          return newStr;
+                        }
+                      },
+                      name: '设备',
+                      type: 'pie',
+                      radius : '55%',
+                      center: ['50%', '40%'],
+                      data: [
+                        {
+                          value:datas[2].value,
+                          name:'故障数量',
+                          itemStyle:{
+                            normal:{
+                              color:'#ffc600',
+                            }
+                          }
+                        },
+                        {
+                          value:datas[1].value,
+                          name:'空闲数量',
+                          itemStyle:{
+                            normal:{
+                              color:'#5ac8fa',
+                            }
+                          }
+                        },
+                        {
+                          value:datas[0].value,
+                          name:'运行数量',
+                          itemStyle:{
+                            normal:{
+                              color:'#4eebbd',
+                            }
+                          }
+                        }
+                      ]
+                    }
+                ]
+              }
+              pie.setOption(option);
+            }            
+          }
+        })
+      },
+      // 今日总用电Top5
+      getTop () {
+        this.$http({
+          url: this.$http.adornUrl('/admin/tequipoutlet/ranking'),
+          method: 'post',
+          data: this.$http.adornData({
+            'statisticsObjType': 2,
+            'statisticsObjId': sessionStorage.getItem('equipId')
+          })
+        }).then(({ data }) => {
+          if (data && data.code === 0) {
+            this.topData = data.info.top
+            this.totalData = data.info.total
+          }
+        })
+      },
+      /* getId(index) {
+        return "sockets_switch" + parseInt(++index)
+      }, */
+      aaa() {
+        document.getElementById('socketsFloor').style.height = (window.innerHeight - 170) + 'px'
+        // this.$refs.contentview.style.height=siteContentViewHeight().minHeight
+      },
+      // 楼层信息列表
+      list() {
+        // var that=this
+        // console.log(this.floorValue)
+        // console.log(this.options)
+        this.$http({
+          url: this.$http.adornUrl('/admin/tequipoutlet/list/children'),
+          //  url: this.$http.adornUrl('/admin/list/children'),
+          method: 'post',
+          data: this.$http.adornData({
+            'stationId': sessionStorage.getItem('equipId'),
+            'floorId': this.floorValue,
+            'type': this.typeValue,
+            'equipName': this.input5
+          })
+        }).then(({
+          data
+        }) => {
+          if (data && data.code === 0) {
+            console.log(data.info)
+            /* for(let i=0;i<data.info.length;i++) {
+              data.info[i].runStatus = data.info[i].runStatus.toString()
+            } */
+            this.socketFloorData = [].concat(data.info)
+            for(let i=0;i<this.socketFloorData.length;i++) {
+              this.showArray[i] = true
+            }
+            let _this = this
+            let token = this.$cookie.get('token')
+            let arr = []
+            for (let i=0;i<this.socketFloorData.length;i++) {
+              arr.push(this.socketFloorData[i].pointId)
+              if(this.socketFloorData[i].list.length > 0) {
+                for(let j=0;j<this.socketFloorData[i].list.length;j++) {
+                  arr.push(this.socketFloorData[i].list[j].pointId)
+                }
+              }
+            }
+            console.log(arr)
+            // 初始化一个 WebSocket 对象
+            _this.floorListWs = new WebSocket(window.SITE_CONFIG.wsBaseUrl + token + "/outlet" + "/children");
+            // _this.floorListWs = new WebSocket("Ws://123.207.167.163:9010/ajaxchattest");
+            _this.floorListWs.last_health_time = -1; // 上一次心跳时间
+            _this.floorListWs.keepalive = function() { 
+              let time = new Date().getTime();
+              if(_this.floorListWs.last_health_time !== -1 && time - _this.floorListWs.last_health_time > 20000) { // 不是刚开始连接 并且 当前时间距离上次成功心跳的时间超过20秒
+                _this.floorListWs.close() 
+              } else { // 如果断网了，floorListWs.send会无法发送消息出去。floorListWs.bufferedAmount不会为0。 
+                if(_this.floorListWs.bufferedAmount === 0 && _this.floorListWs.readyState === 1) { 
+                  _this.floorListWs.send('ping'); 
+                  _this.floorListWs.last_health_time = time; 
+                } 
+              }
+            }
+
+            if(_this.floorListWs) {
+              let reconnect = 0; //重连的时间 
+              let reconnectMark = false; //是否重连过 
+              /* this.setState({ notificationSocket: true }) */
+              // 建立 web socket 连接成功触发事件
+              _this.floorListWs.onopen = function () {
+                _this.floorListWs.send(arr)
+                reconnect = 0; 
+                reconnectMark = false; 
+                _this.floorListWs.receiveMessageTimer = setTimeout(() => {
+                  _this.floorListWs.close();
+                }, 30000); // 30s没收到信息，代表服务器出问题了，关闭连接。如果收到消息了，重置该定时器。
+                if(_this.floorListWs.readyState === 1) { // 为1表示连接处于open状态
+                  _this.floorListWs.keepAliveTimer = setInterval(() => {
+                    _this.floorListWs.keepalive();
+                  }, 1000)
+                }
+              };
+              _this.floorListWs.onerror = () => {
+                console.error('onerror')
+              }
+              // 接收服务端数据时触发事件
+              _this.floorListWs.onmessage = function (evt) {
+                if((evt.data)!="pong"){
+                  // console.log(evt)
+                  let datas = JSON.parse(evt.data)
+                  if(_this.saveEquipId) {
+                    if(_this.saveEquipId.length > 0 && _this.saveEquipId == datas.id.split('-')[0]) {
+                      _this.load = false
+                    }
+                  }
+                  // let data = {'id':'32011500010000400000001-1500','value':'1'}
+                  for(let i=0;i<_this.socketFloorData.length;i++) {
+                    if(_this.socketFloorData[i].equipId == datas.id.split('-')[0]) {
+                      if(_this.socketFloorData[i].pointId == datas.id) {
+                        _this.socketFloorData[i].runStatus = datas.value
+                        if(datas.id.split('-')[0] == this.saveEquipId) {
+                          this.load = false
+                          this.$message({
+                            message: '操作成功',
+                            type: 'success',
+                            duration: 1500,
+                            onClose: () => {
+                            }
+                          })
+                        }
+                      }else {
+                        for(let j=0;j<_this.socketFloorData[i].list.length;j++) {
+                          if(_this.socketFloorData[i].list[j].pointId == datas.id) {
+                            _this.socketFloorData[i].list[j].value = datas.value
+                          }
+                        }
+                      }
+                    }
+                  }            
+                }
+                // console.log(_this.items)              
+                // 收到消息，重置定时器 
+                clearTimeout(_this.floorListWs.receiveMessageTimer);
+                _this.floorListWs.receiveMessageTimer = setTimeout(() => {
+                  _this.floorListWs.close();
+                }, 30000); // 30s没收到信息，代表服务器出问题了，关闭连接。
+              };
+
+              // 断开 web socket 连接成功触发事件
+              _this.floorListWs.onclose = function () {
+                clearTimeout(_this.floorListWs.receiveMessageTimer); 
+                clearInterval(_this.floorListWs.keepAliveTimer); 
+                if(!reconnectMark) { // 如果没有重连过，进行重连。 
+                  reconnect = new Date().getTime(); 
+                  reconnectMark = true; 
+                } 
+                let tempfloorListWs = _this.floorListWs; // 保存_this.floorListWs对象 
+                if(new Date().getTime() - reconnect >= 10000) { // 10秒中重连，连不上就不连了 
+                  _this.floorListWs.close(); 
+                } else { 
+                  _this.floorListWs = new WebSocket(window.SITE_CONFIG.wsBaseUrl + token + "/outlet" + "/children");
+                  _this.floorListWs.onopen = tempfloorListWs.onopen; 
+                  _this.floorListWs.onmessage = tempfloorListWs.onmessage;
+                  _this.floorListWs.onerror = tempfloorListWs.onerror; 
+                  _this.floorListWs.onclose = tempfloorListWs.onclose; 
+                  _this.floorListWs.keepalive = tempfloorListWs.keepalive; 
+                  _this.floorListWs.last_health_time = -1; 
+                }
+              };
+            }
+          }
+        })
+      },
+      // 插座系统实时负荷
+      initEcharts() {
+        var sockets_xAxis_data = [];
+        var sockets_legend_data = [];
+        var sockets_series_data = [];
+        this.$http({
+          url: this.$http.adornUrl('/admin/tequipoutlet/hourload'),
+          method: 'post',
+          data: this.$http.adornData({
+            'statisticsDate':this.value,
+            'statisticsObjType': 2,
+            'statisticsObjId': sessionStorage.getItem('equipId')
+          })
+        }).then(({
+          data
+        }) => {
+          if (data && data.code === 0) {
+            sockets_xAxis_data = data.info.xAxis;
+            sockets_legend_data = data.info.legend;
+            sockets_series_data = data.info.series
+            /* $.each(data.info.series, function (n, dat) {
+              sockets_series_data.push(dat.data)
+            }); */
+            if (document.getElementById('echartsFloor')) {
+              var sockets_echarts = echarts.init(document.getElementById('echartsFloor'))
+              var sockets_option = {
+                // color: ['#ff5252', '#6767e2'],
+                color: ['#ff5252'],
+                tooltip: {
+                  trigger: 'axis',
+                  axisPointer: {
+                    // type: 'cross',
+                    label: {
+                      backgroundColor: '#6a7985'
+                    }
+                  }
+                },
+                title:{
+                  x:100,
+                  y: 'top',
+                  textStyle: {
+                    fontSize: 18,
+                    fontWeight: 'bold',
+                    color: '#333'          // 主标题文字颜色
+                  },
+                },
+                legend: {
+                  orient: 'horizontal',
+                  // selectedMode: false,
+                  data: sockets_legend_data, //分别修改legend格式
+                  textStyle: {
+                    fontSize: 12,
+                    color: '#000'
+                  },
+                },
+                grid: {
+                  x: 50,
+                  y: 40,
+                  x2: 50,
+                  y2: 65,
+                  borderWidth: 0
+                },
+                xAxis: {
+                  // name:'时间',
+                  type: 'category',
+                  boundaryGap: false,
+                  splitLine:{
+                    show:true
+                  },
+                  data: sockets_xAxis_data
+                },
+                yAxis: {
+                  name: '功率',
+                  min: 0,
+                  // max: 200,
+                  // max:null,
+                  splitLine:{
+                    show:true
+                  },
+                  splitNumber: 4,
+                  axisLine: {
+                    lineStyle: {
+                      type: 'solid',
+                      color: '#666', //y轴坐标轴颜色
+                      width: '1' //坐标轴宽度
+                    }
+                  }
+                },
+                dataZoom: [{
+                  // show:false,
+                  zoomOnMouseWheel: true,
+                  type: 'slider',
+                  realtime: true, //拖动滚动条时是否动态的更新图表数据
+                  height: 20, //滚动条高度
+                  // start: _this.cur_data - 8.4, //滚动条开始位置（共100等份）
+                  // end: _this.cur_data //结束位置（共100等份）
+                }, {
+                  type: 'inside', //鼠标滚轮
+                  realtime: true,
+                }, ],
+                series: [{
+                  name: sockets_legend_data[0],
+                  data: sockets_series_data[0].data,
+                  type: 'line',
+                  symbol: 'none',
+                  itemStyle: {
+                    normal: {
+                      lineStyle: {
+                        color: '#ff5252'
+                      }
+                    }
+                  },
+                },/*  {
+                  connectNulls: true,
+                  name: sockets_legend_data[1],
+                  data: sockets_series_data[1],
+                  type: 'line',
+                  symbol: 'none',
+                  itemStyle: {
+                    normal: {
+                      lineStyle: {
+                        color: '#6767e2'
+                      }
+                    }
+                  },
+                } */]
+              };
+              sockets_echarts.setOption(sockets_option);
+              let _this = this
+              let token = _this.$cookie.get('token')
+              let arr = []
+              console.log(data.info.series)
+              for (let item of data.info.series) {
+                if(item.id != null){
+                    arr.push(item.id)
+                }                           
+              }
+              // 初始化一个 WebSocket 对象
+              // _this.floorWs = new WebSocket("ws://123.207.167.163:9010/ajaxchattest");
+              _this.floorWs = new WebSocket(window.SITE_CONFIG.wsBaseUrl + token + "/outlet" + "/cruve");
+              // _this.floorWs =('')
+              _this.floorWs.last_health_time = -1; // 上一次心跳时间
+              _this.floorWs.keepalive = function() { 
+                let time = new Date().getTime();
+                if(_this.floorWs.last_health_time !== -1 && time - _this.floorWs.last_health_time > 20000) { // 不是刚开始连接 并且 当前时间距离上次成功心跳的时间超过20秒
+                  _this.floorWs.close() 
+                } else { // 如果断网了，_this.floorWs.send会无法发送消息出去。_this.floorWs.bufferedAmount不会为0。 
+                  if(_this.floorWs.bufferedAmount === 0 && _this.floorWs.readyState === 1) { 
+                    _this.floorWs.send('ping'); 
+                    _this.floorWs.last_health_time = time; 
+                  } 
+                }
+              }
+
+              if(_this.floorWs) {
+                let reconnect = 0; //重连的时间 
+                let reconnectMark = false; //是否重连过 
+                /* this.setState({ notificationSocket: true }) */
+                // 建立 web socket 连接成功触发事件
+                _this.floorWs.onopen = function () {
+                  _this.floorWs.send(arr)
+                  reconnect = 0; 
+                  reconnectMark = false; 
+                  _this.floorWs.receiveMessageTimer = setTimeout(() => {
+                    _this.floorWs.close();
+                  }, 30000); // 30s没收到信息，代表服务器出问题了，关闭连接。如果收到消息了，重置该定时器。
+                  if(_this.floorWs.readyState === 1) { // 为1表示连接处于open状态
+                    _this.floorWs.keepAliveTimer = setInterval(() => {
+                      _this.floorWs.keepalive();
+                    }, 1000)
+                  }
+                };
+                _this.floorWs.onerror = () => {
+                  console.error('onerror')
+                }
+                // 接收服务端数据时触发事件
+                _this.floorWs.onmessage = function (evt) {
+                  // console.log(evt)
+                  if((evt.data)!="pong"){
+                    let pData = JSON.parse(evt.data)
+                    for (let i = 0; i < sockets_series_data.length; i++) {
+                      if (sockets_series_data[i].id == pData.id) {
+                        sockets_series_data[i].data.push(pData.value)
+                      }
+                    }
+                    if(document.getElementById('echartsFloor')) {
+                      echarts.init(document.getElementById('echartsFloor')).setOption(sockets_option)
+                    }
+                  }
+                  /* let data = {'id':'c2','value':'5'}
+                  for (let i = 0; i < sockets_series_data.length; i++) {
+                    if (_this.sockets_series_data[i].id == data.id) {
+                      _this.sockets_series_data[i].data.push(data.value)
+                    }
+                  }
+                  if(document.getElementById('echartsFloor')) {
+                    echarts.init(document.getElementById('echartsFloor')).setOption(
+                    {series: [{
+                      data: [{
+                        value: data.value
+                      }]
+                    }]})
+                  }    */               
+                  // 收到消息，重置定时器 
+                  clearTimeout(_this.floorWs.receiveMessageTimer);
+                  _this.floorWs.receiveMessageTimer = setTimeout(() => {
+                    _this.floorWs.close();
+                  }, 30000); // 30s没收到信息，代表服务器出问题了，关闭连接。
+                };
+
+                // 断开 web socket 连接成功触发事件
+                _this.floorWs.onclose = function () {
+                  clearTimeout(_this.floorWs.receiveMessageTimer); 
+                  clearInterval(_this.floorWs.keepAliveTimer); 
+                  if(!reconnectMark) { // 如果没有重连过，进行重连。 
+                    reconnect = new Date().getTime(); 
+                    reconnectMark = true; 
+                  } 
+                  let tempfloorWs = _this.floorWs; // 保存_this.floorWs对象 
+                  if(new Date().getTime() - reconnect >= 10000) { // 10秒中重连，连不上就不连了 
+                    _this.floorWs.close(); 
+                  } else { 
+                    _this.floorWs = new WebSocket(window.SITE_CONFIG.wsBaseUrl + token + "/outlet" + "/cruve");
+                    _this.floorWs.onopen = tempfloorWs.onopen; 
+                    _this.floorWs.onmessage = tempfloorWs.onmessage;
+                    _this.floorWs.onerror = tempfloorWs.onerror; 
+                    _this.floorWs.onclose = tempfloorWs.onclose; 
+                    _this.floorWs.keepalive = tempfloorWs.keepalive; 
+                    _this.floorWs.last_health_time = -1; 
+                  }
+                };
+              }
+            }
+            
+          }
+        })
+      },
+      /* cz_info() {
+        this.$http({
+          url: this.$http.adornUrl('/device/outlet/info'),
+          method: 'post',
+          data: this.$http.adornData()
+        }).then(({
+          data
+        }) => {
+          if (data && data.code === 0) {
+            // $("#exception").html(data.info.exception);
+            // $("#offline").html(data.info.offline);
+            // $("#size").html(data.info.size)
+            this.info = data.info
+          }
+        })
+      }, */
+      /* turn(status,id,index) {
+        // var onoff = $("#img" + id).attr("onoff");
+        // var a = 1;
+        // if (onoff === "1") {
+        //   a = 0;
+        // }
+        this.$confirm('是否继续?', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }).then(() => {
+          this.$http({
+          url: this.$http.adornUrl('/device/outlet/control'),
+          method: 'post',
+          data: this.$http.adornData({
+            // scope: 1,
+            // onoff: a,
+            // type: 1,
+            equipId: id,
+            isCheckAll:2,
+            runStatus :status==0?1:0,
+          }),
+        }).then(({
+          data
+        }) => {
+          if (data && data.code === 0) {
+            this.items[index].runStatus==0?this.items[index].runStatus=1:this.items[index].runStatus=0
+            console.log(this.items)
+            index=++index;
+            // if(status==='1'){
+            //   $("#sockets_switch"+index).attr("src", "./static/img/icon-off.png")
+            // }else{
+            //   $("#sockets_switch"+index).attr("src", "./static/img/icon-on.png")
+            // }
+          }
+        })
+        })
+      }, */
+      /* all_onoff(flag) {
+        this.$confirm('是否继续?', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }).then(() => {
+             this.$http({
+          url: this.$http.adornUrl('/device/outlet/control'),
+          method: 'post',
+          data: this.$http.adornData({
+            isCheckAll: 1,
+            runStatus : flag==false?0:1,
+          }),
+        }).then(({
+          data
+        }) => {
+          // alert(flag)
+          if (data && data.code === 0) {
+            this.flag =!this.flag
+            if(this.flag==false){
+              for( let i=0;i<this.items.length;i++){
+                this.items[i].runStatus=1
+              }
+            }else{
+              for( let i=0;i<this.items.length;i++){
+                this.items[i].runStatus=0
+              }
+            }
+            // if (flag > 0) {
+            //   $(".cz_data .list-text img").attr("src", "./static/img/icon-on.png")
+            // } else {
+            //   $(".cz_data .list-text img").attr("src", "./static/img/icon-off.png")
+            // }
+          };
+        })     
+        })
+      }, */
+      // 全选按钮
+      // handleCheckAllChange(val) {
+        /* let arr = []
+        for(let i=0;i<this.socketFloorData.length;i++){
+          let a = this.socketFloorData[i].equipId
+          arr.push(a)
+        }
+        this.checkboxed = val ? arr : []
+        this.isIndeterminate = false */
+
+/*         let arr = []
+        for (let i = 0; i < this.fanListData.length; i++) {
+          let a = this.fanListData[i].equipId
+          console.log(a)
+          arr.push(a)
+        }
+        this.checkboxed = val ? arr : []
+        this.isIndeterminate = false */
+      // },
+      // handleCheckedCitiesChange(value) {
+      //   let checkedCount = value.length
+      //   this.checkAll = checkedCount === this.socketFloorData.length
+      //   this.isIndeterminate = checkedCount > 0 && checkedCount < this.socketFloorData.length   
+      // }
+    },
+    destroyed () {      
+      if(this.floorWs != null){
+        this.floorWs.close()
+      }
+      if(this.floorListWs != null) {
+        this.floorListWs.close()
+      }   
+    }
+  }
+
+</script>
+<style scoped>
+  .socket-top {
+    height: 47%;
+    width: 100%;
+  }
+  .top-left {
+    height: 100%;
+    padding-right: 22px;
+    padding-bottom: 23px;    
+  }
+  .top-echarts {
+    height: 100%;
+    border: 1px solid #eeeeee; 
+    border-radius: 5px
+  }
+  .top-echarts-title {
+    height: 44px;
+    background-color: #f6f6f6;
+    padding-left: 23px;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 200%;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center
+  }
+  .top-echarts-echart {
+    height: -webkit-calc(100% - 44px); 
+    height: -moz-calc(100% - 44px); 
+    height: calc(100% - 44px);
+  }
+
+  .top-center {
+    height: 100%;
+    padding-right: 22px;
+    padding-bottom: 23px;
+  }
+  .top-pie {
+    height: 100%;
+    border: 1px solid #eeeeee; 
+    border-radius: 5px
+  }
+  .top-piechart {
+    height: -webkit-calc(100% - 44px); 
+    height: -moz-calc(100% - 44px); 
+    height: calc(100% - 44px);
+  }
+
+  .top-right {
+    height: 100%;
+    padding-bottom: 23px;
+  }
+  .top-ranking {
+    height: 100%;
+    border: 1px solid #eeeeee; 
+    border-radius: 5px
+  }
+  .top-list {
+    height: -webkit-calc(100% - 44px); 
+    height: -moz-calc(100% - 44px); 
+    height: calc(100% - 44px);
+  }
+  .top-list-data {
+    height: 15%;
+    padding-left: 5%
+  }
+  .top-list-data p {
+    width: 20%;
+    display: inline-block;
+    font-weight: 700
+  }
+  .top-list .top-list-data:nth-child(1) p {
+    width: 100%;
+    font-size: 16px
+  }
+  .top-list .top-list-data:nth-child(1) p span:nth-child(2) {
+    color: #f13b4c;
+    font-weight: 700
+  }
+  .top-list-data >>> .el-progress {
+    display: inline-block;
+    width: 50%;
+  }
+  .top-list-data >>> .el-progress .el-progress-bar .el-progress-bar__outer .el-progress-bar__inner .el-progress-bar__innerText {
+    color: #ffc600
+  }
+  .listdata {
+    color: #ffc600;
+    font-weight: 700
+  }
+  .socket-bottom {
+    height: 53%;
+    width: 100%;
+    border: 1px solid #eeeeee; 
+    border-radius: 5px
+  }
+  .socket-bottom-search {
+    height: 60px;
+    width: 100%;
+    background-color: #f6f6f6;
+    position: relative;
+    display: table;
+  }
+  .socket-bottom-search .search {
+    display: table-cell;
+    vertical-align: middle;
+  }
+  .input-with-select {
+    padding-left: 20px
+  }
+  .socket-bottom-data {
+    overflow: auto;
+    margin-top: 10px;
+    height: -webkit-calc(100% - 70px); 
+    height: -moz-calc(100% - 70px); 
+    height: calc(100% - 70px);
+  }
+  .socket1_img {
+    background:url('~@/assets/images/socket1.png') no-repeat;
+    display:flex;
+    width:20%;
+    min-width:80px;
+    min-height:52px;
+    cursor: pointer;
+  }
+  .socket2_img {
+    background:url('~@/assets/images/socket2.png') no-repeat;
+    display:flex;
+    width:20%;
+    min-width:80px;
+    min-height:52px;
+    cursor: pointer;
+  }
+  .donwimg {
+    background:url('~@/assets/images/down.png') no-repeat;
+    /* display:flex; */
+    width:10%;
+    min-width:20px;
+    min-height:30px;
+    cursor: pointer;
+    position: absolute;
+    right: 0;
+    z-index: 3;
+  }
+  .socket_on {
+    /* background:url('~@/assets/images/on1.png') no-repeat; */
+    width:50%;
+    min-width: 30px;
+    cursor: pointer;
+    background-position: center center
+  }
+  .socket_off {
+    /* background:url('~@/assets/images/off2.png') no-repeat; */
+    width:50%;
+    min-width: 30px;
+    cursor: pointer;
+    background-position: center center
+  }
+  .sockets_btn {
+    width: 100%;
+    height: 100%;
+    min-height: 45px;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+    position: relative;
+    margin: 0 auto;
+    display: flex
+  }
+
+  
+
+  .socket-floor .el-input--medium .el-input__inner{
+    text-align: center;
+  }
+  .socket-floor  .sockets-top-input{
+    min-width: 220px;
+    padding: 0.5% 0 0 0;
+    text-align: center;
+    float: right;
+    position: absolute;
+    right: 450px;
+    top: 0%;
+    z-index: 999;
+  }
+  .socket-floor  .sockets_turn img{
+  width: 100%;
+  height: 100%;
+}
+.socket-floor .sockets_turn{
+  width: 70%;
+  height: 50%;
+  cursor: pointer;
+}
+  .socket-floor {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+  }
+
+  .socket-floor {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+.socket-floor  .sockets-top {
+    width: 100%;
+    height: 40%;
+    border-bottom: 5px solid #ccc;
+    position: relative;
+  }
+
+ .socket-floor .sockets-echarts {
+    width: 75%;
+    height: 100%;
+    border-right: 5px solid #ccc;
+    display: inline-block;
+    vertical-align: middle;
+    position: relative;
+  }
+
+ .socket-floor .sockets-icon {
+    width: 24%;
+    height: 100%;
+    background-color: #fff;
+    display: inline-block;
+    vertical-align: middle;
+    padding: 1% 0;
+    text-align: center;
+  }
+
+ .socket-floor .icon-list {
+    width: 100%;
+    height: 30%;
+    display: table
+  }
+
+  /* .icon-list img {
+    max-width: 25%;
+    display: inline-block;
+    vertical-align: middle;
+  } */
+
+  .socket-floor .icon-icon-num {
+    width: 70%;
+    display: inline-block;
+    vertical-align: middle;
+    font-size: 1.2vw;
+    margin-left: 2%;
+    text-align: left;
+  }
+
+  .socket-floor .icon-icon-num span {
+    font-size: 1.2vw;
+    margin-left: 12%;
+  }
+
+ .socket-floor .sockets-nav {
+    margin-top: 2%;
+    width: 100%;
+    padding-left: 5%;
+    position: relative;
+  }
+
+.socket-floor  .sockets-nav img {
+    max-width: 7%;
+    vertical-align: middle;
+    margin-left: 2%;
+  }
+
+ .socket-floor .sockets-nav span {
+    font-size: 18px;
+    vertical-align: middle;
+    margin-left: 1%;
+  }
+
+ .socket-floor .sockets-nav-text {
+    width: 100%;
+    font-size: 18px;
+    border: 1px solid #666;
+    padding: 2% 5% 2% 12%;
+    border-radius: 10px;
+    letter-spacing: 1px;
+  }
+
+.socket-floor  .sockets-input {
+    position: relative;
+    width: 20%;
+    display: inline-block;
+    margin-left: 5%;
+  }
+
+   .socket-floor .icon-seo {
+    position: absolute;
+    top: 20%;
+    left: 2%;
+    max-width: 100%;
+  }
+
+.socket-floor  .sockets-nav-but {
+    width: 5%;
+    font-size: 16px;
+    padding: 0.6% 1%;
+    border-radius: 10%;
+    border: none;
+    background-color: rgb(12, 144, 245);
+    color: #fff;
+    cursor: pointer;
+    margin-left: 1%;
+  }
+  .socket-floor  .sockets-nav-but:hover{
+    background-color: rgb(10, 115, 196);
+  }
+
+ .socket-floor .sockets-data {
+    width: 90%;
+    height: 48%;
+    margin: 0 auto;
+    background-color: #fff;
+    margin-top: 2%;
+  }
+
+.socket-floor  .sockets-list {
+    width: 21%;
+    height: 100%;
+    background-color: #fff;
+    border-radius: 2%;
+    display: inline-block;
+    margin: 0 0 0 3%;
+    vertical-align: middle;
+    border: 1px solid #ccc;
+    position: relative;
+    overflow: auto
+  }
+  .socket-setbutton {
+    position: absolute;
+    right: 5px;
+    top: 5px;
+    font-size: 16px;
+    color: #7f7e7e;
+    cursor: pointer; 
+  }
+
+  .set-device-form {
+   /*  background-color: #eef4fa; */
+    border-radius: 5px;
+    display: flex;
+    flex-direction: row;
+    /* flex-direction: column;
+    width: 100%;
+    padding: 20px 0 0 1% */
+    /* height: 100%;*/
+    overflow-y: auto 
+  }
+  .set-device-form-left {
+    /* border-right: 1px solid #ccc; */
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: right;
+  }
+  .socketSetDialog >>> .el-dialog {
+    width: 60%;
+    margin-top: 2vh !important
+  }
+  .set-device-form-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px
+  }
+  .set-device-form-item >>> .el-form-item__content {
+    width: 35%;
+    min-width: 130px;
+    display: flex;
+    flex-direction: row;
+    align-items: center
+  }
+  /* .set-device-form-item a {
+    flex: 1;
+    min-width: 150px;
+    text-decoration: none
+  } */
+  .set-device-form-item >>> .el-select, .set-device-form-item >>> .el-cascader, .set-device-form-item >>> .el-input{
+    flex: 3;
+  }
+  .set-device-form-item >>> .el-form-item__label {
+    width: 40%;
+    min-width: 320px
+  }
+  .set-device-form-right {
+    flex: 1;
+  }
+  .set-device-form-item-right {   
+    display: flex;
+    align-items: left;
+    /* flex-direction: row-reverse; */
+    margin-bottom: 10px
+  }
+  .set-device-form-item-right >>> .el-form-item__content {
+    width: 35%;
+    min-width: 130px;
+    display: flex;
+    flex-direction: row;
+    align-items: center
+  }
+  .set-device-form-item-right >>> .el-select, .set-device-form-item-right >>> .el-cascader, .set-device-form-item-right >>> .el-input{
+    flex: 3;
+  }
+  .set-device-form-item-right >>> .el-form-item__label {
+    /* width: 40%; */
+    min-width: 200px;
+  }
+
+  .socket-floor >>> .el-dialog--center .el-dialog__body {
+    padding-bottom: 0px
+  }
+
+  .socket-floor .cz_data {
+    width: 100%;
+    /* height: 98%; */
+    height: calc(100% - 20px);
+    /* margin: 0 auto;
+    overflow-y: scroll; */
+  }
+
+ .socket-floor .sockets_list-title {
+    width: 100%;
+    padding: 2% 8% 0 8%;
+    display: flex;
+    font-weight: 700;
+    color: #7f7e7e;
+    height: 22%;
+    min-height: 70px
+  }
+
+.socket-floor  .sockets_list-title img {
+    max-width: 100%;
+  }
+
+.socket-floor .list-text {
+  height: 8%;
+  padding: 2% 0 0 8%;
+  font-size:14px;
+  font-weight: 700;
+  color: #7f7e7e
+}
+
+.socket-floor  .sockets_list-name {
+    width: 80%;
+    margin: 0 auto;
+    font-size: 1vw;
+    text-align: left;
+    margin-bottom: 2%;
+  }
+  /* 列表面板样式 */
+   .socket-floor .list-visit {
+    width: 90%;
+    height: -webkit-calc(72% - 23px); 
+    height: -moz-calc(72% - 23px); 
+    height: calc(72% - 23px);
+    margin: 10px auto 10px auto;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    font-size: 14px;
+    position: relative;
+  } 
+  .socket-floor .list-visit .list-visit-lists {
+    display: flex;
+    padding: 0 20px;
+    line-height: 220%;
+    min-height: 29px
+  }
+  .list-visit-icon {
+    position: absolute;
+    right: 2px;
+    top: 2px;
+    cursor: pointer;
+    transform: rotate(45deg);
+    -ms-transform: rotate(45deg); 	/* IE 9 */
+    -moz-transform: rotate(45deg); 	/* Firefox */
+    -webkit-transform: rotate(45deg); /* Safari 和 Chrome */
+    -o-transform: rotate(45deg); 	/* Opera */
+    z-index: 2;
+    font-size: 16px;
+  }
+  /* 列表展示面板样式 */
+  .socket-floor .list-visit > .list-visit-lists:nth-of-type(even) {
+    background-color: #F2F0F1;
+  }
+  .socket-floor .list-visit p:nth-of-type(even) {
+    background-color: #F2F0F1;
+  }
+  .socket-floor .list-visit-name {
+    display: flex;
+    flex: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .socket-floor .list-visit-value {
+    display: flex;
+    flex: 1;
+  }
+  .socket-floor .list-visit-unit {
+    display: flex;
+    width: 50px;
+  }
+  /* 列表设置面板样式 */
+  .list-visit-set {
+    position: relative;z-index: 1;height: 100%;
+    /* padding-left: 0.6vw; */
+    display: flex;
+    flex-direction: row;
+    align-items:center;
+  }
+  .list-visit-img {
+    height: 100%;background-size: 2vw 2vw;background-repeat: no-repeat;padding: 0 0 0 2.5vw;line-height: 2;font-size: 0.8vw;/* background-position: 0.5vw 0.2vw */
+  }
+  .statusimg {
+    background-image:url(~@/assets/images/6666_03.png)
+  }
+  .tempimg {
+    background-image:url(~@/assets/images/6666_09.png)
+  }
+  .volumeimg {
+      background-image:url(~@/assets/images/6666_07.png)
+  }
+  .modeimg {
+      background-image:url(~@/assets/images/6666_11.png)
+  }
+  .windimg {
+      background-image:url(~@/assets/images/6666_05.png)
+  }
+  .xhimg {
+    background-image:url(~@/assets/images/6666_13.png)
+  }
+
+  .socket-floor .list-visit p {
+    height: 16%;
+    margin: 0;
+    line-height: 220%;
+    padding: 0% 4%;
+    min-height: 29px
+    /* text-align: center; */
+  }
+
+   .socket-floor .list-visit span {
+    /* margin-left: 10%; */
+    width: 92%;
+    display: inline-block;
+  }
+
+  .socket-floor .sockets-list-img {
+    display: table-cell;
+    width: 30%;
+    height: 100%;
+    vertical-align: middle
+  }
+  .socket-floor .sockets-list-img img {
+    width: 50%;
+  }
+  .socket-floor .sockets-list-data {
+    display: table-cell;
+    width: 70%;
+    height: 100%;
+    vertical-align: middle
+  }
+  .socket-floor .sockets-list-data p {
+    padding: 0;
+    margin: 0
+  }
+ /*  群控页面样式 */
+  .socket-floor .groupcontrol {
+    height: 100%;
+    border: 1px solid #ccc
+  }
+  .socket-floor .groupcontrol-top {
+    height: 20%;
+    overflow-y: auto;
+    padding: 20px;
+    border-bottom: 1px solid #ccc
+}
+  .socket-floor .groupcontrol-top .el-checkbox+.el-checkbox {
+    margin-left: 0;
+    width: 25%;
+  }
+  .socket-floor .groupcontrol-top .el-checkbox {
+    width: 25%;
+  }
+  .socket-floor .groupcontrol-footer {
+    height: 80%;
+    padding: 20px
+  }
+  .socket-floor .groupcontrol-footer-cont {
+    height: 25%;
+    padding-left: 5%;
+    padding-top: 1%
+  }
+  .socket-floor .groupcontrol-footer-cont p {
+    margin: 0;
+    font-size: 0.8vw
+  }
+  .socket-floor .groupcontrol-footer-cont .el-select {
+    width: 15%;
+    font-size: 0.8vw
+  }
+  .socket-floor .groupcontrol-footer-cont .el-button {
+    margin-left: 5%;
+    font-size: 0.8vw
+  }
+  .socket-floor .groupcontrol-footer-cont .el-radio__label {
+    font-size: 0.8vw
+  }
+  .controlDialog >>> .el-dialog  {
+    height: 70%;
+  }
+  .controlDialog >>> .el-dialog__body {
+   /*  min-height: 500px; */
+    height: 90%;
+  }
+ /*  群设弹框样式 */
+  .socketSetAllDialog >>> .el-dialog {
+    width: 70%;
+    margin: 20px auto !important
+  }
+  
+  .socketSetAllDialog>>> .el-table th.gutter{
+    display: table-cell!important;
+  }
+  .execute{
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    background-size: 100% 100%;
+    background-image: url("~@/assets/images/loading.gif");
+  }
+  .success{
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    background-size: 100% 100%;
+    background-image: url("~@/assets/images/success.gif");
+  }
+  .fail{
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    background-size: 100% 100%;
+    background-image: url("~@/assets/images/fail.gif");
+  }
+  /* 开关按钮样式重定义 */
+  .socket-bottom-data >>> .el-switch__label--left{
+    position: relative;
+    left: 60px;
+    margin-top: auto;
+    color: #fff;
+    z-index: -1111;
+  }
+  .socket-bottom-data >>> .el-switch__label--right{
+    position: relative;
+    right: 60px;
+    margin-top: auto;
+    color: #fff;
+    z-index: -1111;
+  }
+  .socket-bottom-data >>> .el-switch__label--right.is-active{
+    z-index: 1111;
+    color: #fff !important;
+  }
+  .socket-bottom-data >>> .el-switch__label--left.is-active{
+    z-index: 1111;
+    color: #ccc !important;
+  }
+  .socket-bottom-data >>> .el-switch.is-disabled {
+    opacity: 1;
+  }
+  .socket-bottom-data >>> .el-switch.is-disabled .el-switch__core, .socket-bottom-data >>> .el-switch.is-disabled .el-switch__label{
+    cursor: pointer;
+    border-width: 3px;
+    border-color: rgb(237, 239, 237);
+    height: 30px;
+    border-radius: 15px;
+  }
+  .socket-bottom-data >>> .el-switch.is-disabled .el-switch__core {
+    width: 60px !important;
+  }
+  .socket-bottom-data >>> .el-switch__core:after {
+    top: 0;
+    height: 26px;
+    width: 27px;
+    /* margin-left: -26px */
+  }
+  .socket-bottom-data >>> .el-switch.is-checked .el-switch__core::after {
+     margin-left: -26px
+  }
+  .setcheck >>> .el-checkbox__label, .setchecks >>> .el-checkbox__label {
+    display: none;  
+  }
+  .setcheck >>> .el-checkbox__input, .setchecks >>> .el-checkbox__input{
+    padding-left: 5px
+  }
+.bounce-enter-active {
+  transition: all .3s ease;
+}
+.bounce-leave-active {
+  transition: all .5s cubic-bezier(1.0, 0.5, 0.8, 1.0);
+}
+.bounce-enter, .bounce-leave-to
+/* .slide-fade-leave-active for below version 2.1.8 */ {
+  transform: translateY(5px);
+  opacity: 0;
+}
+</style>

@@ -1,0 +1,991 @@
+<template>
+  <div class="comm-device" id="commDevice">
+    <el-form :inline="true" :model="dataForm" @keyup.enter.native="getcommdeviceList()" class="device-form">
+      <el-form-item class="device-form-item" >
+        <el-cascader
+          :options="orgOptions"
+          v-model="dataForm.orgSelectedOptions"
+          change-on-select
+          placeholder="选择组织机构"
+        ></el-cascader>
+      </el-form-item>
+      <el-form-item class="device-form-item" >
+        <el-select v-model="dataForm.sitevalue" filterable placeholder="选择站点" @click.native="getsiteLists()" :loading="siteListLoading" clearable>
+          <el-option
+            v-for="item in siteOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value">
+          </el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item class="device-form-item" >
+        <el-select v-model="dataForm.channelId" filterable placeholder="选择通道" @click.native="getChannelLists()" :loading="channelListLoading" clearable>
+          <el-option
+            v-for="item in channelIdOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value">
+          </el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item class="device-form-item" >
+        <el-select v-model="dataForm.equipTypeId" filterable placeholder="选择设备型号" @click.native="getEquipTypeLists()" :loading="equipTypeIdLoading" clearable>
+          <el-option
+            v-for="item in equipTypeIdOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value">
+          </el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item class="device-form-item">
+        <el-button type="success" @click="getcommdeviceList('params')">查询</el-button>
+        <el-button v-if="isAuth(OPTAUTH_ADD)" type="primary" @click="addcommdevice()">新增</el-button>
+        <el-button v-if="isAuth(OPTAUTH_DELETE)" type="danger" @click="deletecommdevice()" :disabled="dataListSelections.length <= 0">批量删除</el-button>
+      </el-form-item>
+    </el-form>
+    <div class="device-list">
+      <voTable @search="search" :table="tableAll" :pageParam="getTable" 
+       @action="action" @deleteAll="deleteAll"></voTable>
+      <!-- <el-table
+        :data="dataList"
+        border
+        stripe
+        :row-class-name="tableRowClassName"
+        :max-height="deviceTableHeight"
+        v-loading="dataListLoading"
+        @selection-change="selectionChangeHandle"
+        style="width: 100%;">
+        <el-table-column
+          type="selection"
+          header-align="center"
+          align="center"
+          width="50">
+        </el-table-column>
+        <el-table-column
+          type="index"
+          header-align="center"
+          align="center"
+          width="80"
+          label="序号">
+        </el-table-column>
+        <el-table-column
+          prop="commEquipName"
+          header-align="center"
+          align="center"
+          min-width="150"
+          label="通信设备名称">
+        </el-table-column>
+        <el-table-column
+          prop="orgName"
+          header-align="center"
+          align="center"
+          min-width="150"
+          label="所属组织机构名称">
+        </el-table-column>
+        <el-table-column
+          prop="stationName"
+          header-align="center"
+          align="center"
+          min-width="150"
+          label="所属站点名称">
+        </el-table-column>
+        <el-table-column
+          prop="channelName"
+          header-align="center"
+          align="center"
+          min-width="150"
+          label="通道名称">
+        </el-table-column>
+        <el-table-column
+          prop="equipTypeId"
+          header-align="center"
+          align="center"
+          min-width="150"
+          label="设备型号名称">
+        </el-table-column>
+        <el-table-column
+          prop="remark"
+          header-align="center"
+          align="center"
+          min-width="180"
+          label="备注">
+        </el-table-column>
+        <el-table-column
+          fixed="right"
+          header-align="center"
+          align="center"
+          width="150"
+          label="操作">
+          <template slot-scope="scope">
+            <el-button v-if="isAuth(OPTAUTH_UPDATE)" :plain="true" type="warning" size="mini" @click="addcommdevice(scope.row)">修改</el-button>
+            <el-button v-if="isAuth(OPTAUTH_DELETE)" :plain="true" type="danger" size="mini" @click="deletecommdevice(scope.row.commId)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-pagination
+        @size-change="sizeChangeHandle"
+        @current-change="currentChangeHandle"
+        :current-page="pageIndex"
+        :page-sizes="[10, 20, 50, 100]"
+        :page-size="pageSize"
+        :total="totalPage"
+        layout="total, sizes, prev, pager, next, jumper">
+      </el-pagination> -->
+    </div>
+    <!-- 弹窗, 新增 / 修改 -->
+    <el-dialog
+      :title="dialogTitle == undefined ? '新  增' : '修  改'"
+      :close-on-click-modal="false"
+      :visible.sync="addOrUpdateVisible"
+      center="center">
+      <el-form :model="dataFormSet" @keyup.enter.native="dataFormSubmit()" label-width="80px" class="set-device-form" :rules="dataFormSetRule" ref="dataFormSet">
+          <el-form-item class="set-device-form-item" prop="commEquipName" label="设备名称">
+              <el-input
+                placeholder="请输入"
+                v-model="dataFormSet.commEquipName"
+                clearable>
+              </el-input>
+            </el-form-item> 
+        <el-form-item class="set-device-form-item" label="组织机构" prop="setOrgSelectedOptions">
+          <el-cascader
+            :options="orgOptions"
+            change-on-select
+            v-model="dataFormSet.setOrgSelectedOptions"
+            @change='changeOrg'
+          ></el-cascader>
+        </el-form-item>
+        <el-form-item class="set-device-form-item" label="站点" prop='setSitevalue'>
+          <el-select v-model="dataFormSet.setSitevalue" filterable placeholder="请选择" @click.native="getsiteLists()" :loading="siteListLoading">
+            <el-option
+              v-for="item in siteOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value">
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item class="set-device-form-item" label="所属通道" prop="channelName">
+          <el-select v-model="dataFormSet.channelName" filterable placeholder="请选择" @click.native="getChannelLists()" :loading="channelListLoading">
+            <el-option
+              v-for="item in channelIdOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value">
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item class="set-device-form-item" prop="commAddress" label="设备地址">
+            <el-input
+              placeholder="请输入"
+              v-model="dataFormSet.commAddress"
+              clearable>
+            </el-input>
+          </el-form-item>
+          <el-form-item class="set-device-form-item" prop="localConnectUrl" label="IP">
+              <el-input
+                placeholder="请输入"
+                v-model="dataFormSet.localConnectUrl"
+                clearable>
+              </el-input>
+            </el-form-item>
+            <el-form-item class="set-device-form-item" prop="localPort" label="端口">
+                <el-input
+                  placeholder="请输入"
+                  v-model="dataFormSet.localPort"
+                  clearable>
+                </el-input>
+              </el-form-item>
+              <el-form-item class="set-device-form-item" label="设备关系" prop="commRelation">
+                  <el-select v-model="dataFormSet.commRelation" filterable placeholder="请选择"  >
+                    <el-option
+                      v-for="item in commRelationOptions"
+                      :key="item.value"
+                      :label="item.label"
+                      :value="item.value">
+                    </el-option>
+                  </el-select>
+                </el-form-item>     
+        <el-form-item class="set-device-form-item" label="设备型号" prop="equipTypeId">
+          <el-select v-model="dataFormSet.equipTypeId" filterable placeholder="请选择" @click.native="getEquipTypeList()" :loading="equipTypeIdLoading">
+            <el-option
+              v-for="item in setEquipTypeIdOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value">
+            </el-option>
+          </el-select>
+        </el-form-item>
+        
+        <el-form-item class="set-device-form-item" label="备注" prop="remark">
+          <el-input
+            type="textarea"
+            :rows="3"
+            placeholder="请输入内容"
+            v-model="dataFormSet.remark">
+          </el-input>
+        </el-form-item>  
+      </el-form>      
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="addOrUpdateVisible = false">取消</el-button>
+        <el-button type="primary" @click="dataFormSubmit(dataFormSet)">确定</el-button>
+      </span>
+    </el-dialog>
+  </div>
+</template>
+
+<script>
+  import { isIpAddress } from '@/utils/validate'
+import voTable from '@/components/table/table'
+  export default {
+    data () {
+      var validateIpAddress = (rule, value, callback) => {
+      if (!isIpAddress(value)) {
+        callback(new Error('IP地址不正确'))
+      } else {
+        callback()
+      }
+    }
+    var validatePort = (rule, value, callback) => {
+      var regPos = /^\d+(\.\d+)?$/; //非负浮点数
+    var regNeg = /^(-(([0-9]+\.[0-9]*[1-9][0-9]*)|([0-9]*[1-9][0-9]*\.[0-9]+)|([0-9]*[1-9][0-9]*)))$/; //负浮点数
+    if(regPos.test(value) || regNeg.test(value)) {
+      callback()
+        } else {
+          callback(new Error('端口地址请输入数字'));
+        }
+      /* if(typeof(value)!='number'){
+        callback(new Error('端口地址请输入数字'))
+      }else  */if (value > 65535 || value < 0) {
+        callback(new Error('地址超出1~65535范围'))
+      } else {
+        callback()
+      }
+    }
+      return {
+        
+          tableAll:{
+          defaultSort:{prop:'createdTime',order:'descending'},
+          status:{disabled: false, status: '状态', isShow: false},
+          tableLabel:[         
+            {prop:'commEquipName',title:'设备名称'},
+            {prop:'channelName',title:'所属通道'},
+            {prop:'commAddress',title:'设备地址'},
+            {prop:'localConnectUrl',title:'IP'},
+            {prop:'localPort',title:'端口'},
+            {prop:'commRelation',title:'设备关系'},
+            {prop:'orgName',title:'组织机构'},
+            {prop:'stationName',title:'站点'},
+            {prop:'equipTypeName',title:'设备型号'},
+            {prop:'remark',title:'备注',fixde: 'right'},
+            /* {prop:'createdTime',title:'CREATED_TIME',width:'200',sort:true,formatter:(row)=>{
+                return moment(row.createdTime).format('YYYY-MM-DD HH:mm:ss')
+              }} */
+          ],
+          tableData: [],
+          tableOption:{
+            isShow: true,
+            action: '操作',
+            width:'200',
+            buttons:[
+              {label:'修改',methods:'detail',no:'1040:4'},
+              {label:'删除',methods:'delete',no:'1040:8'}
+            ]
+          },
+          total: 0,
+          pageIndex: 1,
+          load: false
+        },
+        /*你的请求参数*/
+        getTable:{
+          pageSize: 10,
+          pageNo: 1,
+          username: '',
+          roleId: null,
+          orderBy:''
+        },
+        // 新增修改页面设备型号下拉框
+        setEquipTypeIdOptions: [],
+        // 设备型号下拉框
+        equipTypeIdOptions: [],
+        
+        //设备关系下拉框
+        commRelationOptions:[
+          {label:"下位机",value:"1"},
+          {label:"上位机",value:"2"},
+          {label:"系统",value:"3"},
+        ],
+        // 通道下拉框
+        channelIdOptions: [],
+        // 表格高度
+        deviceTableHeight: '',
+        // 增加修改页面 表单
+        dataFormSet: {
+          commRelation:"",
+          // 组织机构值
+          setOrgSelectedOptions: [],
+          // 选择的站点值
+          setSitevalue: null,
+          // 增加修改页面 通道标识下拉框数组选择值
+          channelName: null,
+          // 增加修改页面 设备型号下拉框数组选择值
+          equipTypeId: null,
+          // 增加修改页面 设备名称
+          commEquipName: null,
+          // 增加修改页面 备注
+          remark: null,
+          localConnectUrl:null,
+          commAddress:null,
+          commRelation:null,
+          localPort:null,
+
+        },
+        dataFormSetRule: {
+          setOrgSelectedOptions: [{ required: true, message: '组织机构不能为空', trigger: 'blur' }],
+          setSitevalue: [{ required: true, message: '站点不能为空', trigger: 'blur' }],
+          channelName: [{ required: true, message: '通道名称不能为空', trigger: 'blur' }],
+          equipTypeId: [{ required: true, message: '设备型号不能为空', trigger: 'blur' }],
+          commEquipName: [{ required: true, message: '设备名称不能为空', trigger: 'blur' }],
+          commRelation: [{ required: true, message: '设备关系不能为空', trigger: 'blur' }],
+          commAddress: [{ required: true, message: '设备地址不能为空', trigger: 'blur' }],
+          localConnectUrl: [
+          { required: true, message: '本地IP不能为空', trigger: 'blur' },
+          { validator: validateIpAddress, trigger: 'blur' }
+        ],
+        localPort: [
+          { required: true, message: '本地端口不能为空', trigger: 'blur' },
+          { validator: validatePort, trigger: 'blur' }
+        ],
+        
+
+         /*  {prop:'commEquipName',title:'设备名称'},
+            {prop:'channelName',title:'所属通道'},
+            {prop:'commAddress',title:'设备地址'},
+            {prop:'ip',title:'IP'},
+            {prop:'port',title:'端口'},
+            {prop:'commRelation',title:'设备关系'},
+            {prop:'orgName',title:'组织机构'},
+            {prop:'stationName',title:'站点'},
+            {prop:'equipTypeId',title:'设备型号'},
+            {prop:'remark',title:'备注',fixde: 'right'}, */
+        },     
+        // 增加修改页面 通道标识下拉框数组
+        passagewayOptions: [],        
+        // 增加修改页面 通讯设备标识下拉框数组
+        deviceOptions: [],             
+        // 区分是新增还是修改页面
+        dialogTitle: '',
+        // 全部站点数组
+        siteOptions: [],
+        // 全部组织机构数组
+        orgOptions: [],
+        // 查询表单
+        dataForm: {
+          // 已选组织机构层级数组 ['第一层value','第二层value'...'最终值value']
+          orgSelectedOptions: [],
+          // 选择的站点信息
+          sitevalue: null,
+          channelId: null,
+          equipTypeId: null
+        },
+        dataList: [],
+        // 当前页
+        pageIndex: 1,
+        // 分页大小
+        pageSize: 10,
+        // 总记录数
+        totalPage: 2,
+        dataListLoading: false,
+        siteListLoading: false,
+        channelListLoading: false,
+        equipTypeIdLoading: false,
+        deviceOptionsLoading: false,
+        // 多选数组
+        dataListSelections: [],
+        // 增加、修改配置页面是否显示
+        addOrUpdateVisible: false
+      }
+    },
+    created () {
+      this.deviceTableHeight = window.innerHeight-320     
+    },
+    mounted () {
+      this.getcommdeviceList()
+      this.getOrgLists()
+      // document.getElementById('commDevice').style.height = (window.innerHeight-170)+'px'
+      window.onresize = function () {
+        if(document.getElementById('commDevice')){
+          // document.getElementById('commDevice').style.height = (window.innerHeight - 170) + 'px'
+          this.tableHeight = window.innerHeight-320
+        }
+      }
+    },
+    components: {
+      // AddOrUpdate
+      voTable
+    },
+    activated () {
+      // this.getcommdeviceList()
+    },
+    watch: {
+      // 监听组织机构选框修改，清除其他搜索框信息内容
+      'dataForm.orgSelectedOptions': function (val) {
+        this.dataForm.sitevalue = null
+        this.dataForm.channelId = null
+        this.dataForm.equipTypeId = null
+      },
+      'dataForm.sitevalue': function (val) {
+        this.dataForm.equipTypeId = null
+      },
+      'this.dataForm.channelId': function (val) {
+        this.dataForm.equipTypeId = null
+      },
+    },
+    methods: {
+      deleteAll(obj) {
+        // console.log(obj)
+        this.dataListSelections = obj
+      },
+      action(obj){
+        // console.log(obj)
+        if(obj.methods === 'detail'){
+          // console.log('这里添加详情函数')
+          this.addcommdevice(obj.row)
+        }
+        if(obj.methods === 'delete'){
+          // console.log('这里添加删除函数')
+          this.deletecommdevice(obj.row.commId)
+        }
+      },
+      search(obj){
+        // console.log(obj)
+        this.getTable.pageSize = obj.pageSize;
+        this.getTable.pageNo = obj.pageNo;
+        this.getTable.orderBy = obj.orderBy;
+        this.tableAll.load = true
+        this.$http({
+          url: this.$http.adornUrl('/admin/tcommequip/list'),
+          method: 'post',
+          data: this.$http.adornParams({
+            'page': obj.pageNo.toString(),
+            'limit': obj.pageSize.toString(),
+            'orgId': this.dataForm.orgSelectedOptions.length == 0 ? JSON.parse(window.sessionStorage.getItem('userInfo')).orgId : this.dataForm.orgSelectedOptions[this.dataForm.orgSelectedOptions.length -1],
+            'channelId': this.dataForm.channelId,
+            'equipTypeId': this.dataForm.equipTypeId,
+            'stationId': this.dataForm.sitevalue
+          })
+        }).then(({data}) => {
+          if (data && data.code === 0) {
+            this.tableAll.tableData = data.page.list
+            this.tableAll.total = data.page.total
+            /* this.pageIndex = data.page.currPage
+            this.pageSize = data.page.pageSize */
+          } else {
+            this.tableAll.tableData = []
+            this.tableAll.total = 0
+          }
+          this.tableAll.load = false
+        })     
+      },
+      // 监听 新增修改页面组织机构选框改变
+      changeOrg () {
+        this.dataFormSet.setSitevalue = null
+        this.dataFormSet.channelName = null
+      },
+      f(arr,v){
+        for(let i=0; i<arr.length;i++){
+          if(arr[i].value == v) {
+            return this.dataFormSet.orgName = arr[i].label
+          } else {
+            this.$options.methods.f.bind(this)(arr[i].children, v)
+          }
+        }      
+      },
+      // 增加修改页面设备型号下拉框
+      getEquipTypeList () {
+        this.$http({
+          url: this.$http.adornUrl('/admin/tcommequip/queryequiptype'),
+          method: 'post',
+          data: this.$http.adornParams({
+            orgId: this.$store.state.user.orgId
+          })
+        }).then(({data}) => {
+          if (data && data.code === 0) {
+            this.setEquipTypeIdOptions = data.list      
+          }
+        })        
+      },
+      f(arr,v){
+        for(let i=0; i<arr.length;i++){
+          if(arr[i].value == v) {
+            return this.dataFormSet.orgName = arr[i].label
+          } else {
+            this.$options.methods.f.bind(this)(arr[i].children, v)
+          }
+        }      
+      },
+      // 提交增加、修改表单
+      dataFormSubmit (dataFormSet) {
+        this.$refs['dataFormSet'].validate((valid) => {
+          // console.log(dataFormSet)
+          if (valid) {
+            this.$confirm(`确定提交?`, '提示', {
+              confirmButtonText: '确定',
+              cancelButtonText: '取消',
+              type: 'warning'
+            }).then(() => {
+              this.$http({
+                url: this.$http.adornUrl(`/admin/tcommequip/${this.dialogTitle == undefined ? 'save' : 'update'}`),
+                method: 'post',
+                data: this.$http.adornData({
+                  'commId': this.dialogTitle == undefined ? null : this.dialogTitle,
+                  'orgId': dataFormSet.setOrgSelectedOptions[dataFormSet.setOrgSelectedOptions.length-1],
+                  'stationId': dataFormSet.setSitevalue,
+                  'channelId': dataFormSet.channelName,
+                  'equipTypeId': dataFormSet.equipTypeId.toString(),
+                  'commEquipName': dataFormSet.commEquipName,
+                  'remark': dataFormSet.remark,
+                  'commRelation': dataFormSet.commRelation,
+                  'commAddress': dataFormSet.commAddress,
+                  'localConnectUrl': dataFormSet.localConnectUrl,
+                  'localPort': dataFormSet.localPort,
+                })
+              }).then(({data}) => {
+                if(data && data.code === 0) {
+                  this.addOrUpdateVisible = false
+                      // for(let i=0;i<this.setEquipTypeIdOptions.length;i++)  {
+                      //   if(this.setEquipTypeIdOptions[i].value == dataFormSet.equipTypeId) {
+                      //     this.dataFormSet.equipTypeName = this.setEquipTypeIdOptions[i].label
+                      //   }
+                      // } 
+                      // for(let i=0;i<this.channelIdOptions.length;i++)  {
+                      //   if(this.channelIdOptions[i].value == dataFormSet.channelName) {
+                      //     this.dataFormSet.channelName = this.channelIdOptions[i].label
+                      //   }
+                      // }
+                      // for(let i=0;i<this.siteOptions.length;i++) {
+                      //   if(this.siteOptions[i].value == dataFormSet.setSitevalue) {
+                      //     this.dataFormSet.stationName = this.siteOptions[i].label
+                      //   }
+                      // }
+                      // this.$options.methods.f.bind(this)(this.orgOptions, dataFormSet.setOrgSelectedOptions[dataFormSet.setOrgSelectedOptions.length-1])
+                      // if(this.dialogTitle == undefined) {                       
+                      //   let obj = {
+                      //     channelId: dataFormSet.channelName,
+                      //     channelName: dataFormSet.channelName,
+                      //     commEquipName: dataFormSet.commEquipName,
+                      //     commId: data.id,
+                      //     equipTypeId: dataFormSet.equipTypeId,
+                      //     equipTypeName: dataFormSet.equipTypeName,
+                      //     orgId: dataFormSet.setOrgSelectedOptions[dataFormSet.setOrgSelectedOptions.length-1],
+                      //     orgName: dataFormSet.orgName,
+                      //     remark: dataFormSet.remark,
+                      //     stationId: dataFormSet.setSitevalue,
+                      //     stationName: dataFormSet.stationName,
+                      //     commRelation:dataFormSet.commRelation,
+                      //     commAddress:dataFormSet.commAddress,
+                      //     localPort:dataFormSet.localPort,
+                      //     localConnectUrl:dataFormSet.localConnectUrl,
+                      //   }
+                      //   this.tableAll.tableData.unshift(obj)
+                      // } else {
+                      //   for(let i=0;i<this.tableAll.tableData.length;i++) {
+                      //     if(this.tableAll.tableData[i].commId == this.dialogTitle) {                      
+                      //       this.$nextTick(() => {
+                      //         this.tableAll.tableData[i].channelId = dataFormSet.channelName
+                      //         this.tableAll.tableData[i].channelId = dataFormSet.channelName,
+                      //         this.tableAll.tableData[i].channelName = dataFormSet.channelName,
+                      //         this.tableAll.tableData[i].commEquipName = dataFormSet.commEquipName,
+                      //         this.tableAll.tableData[i].commId = this.dialogTitle,
+                      //         this.tableAll.tableData[i].equipTypeId = dataFormSet.equipTypeId,
+                      //         this.tableAll.tableData[i].equipTypeId = dataFormSet.equipTypeId,
+                      //         this.tableAll.tableData[i].orgId = dataFormSet.setOrgSelectedOptions[dataFormSet.setOrgSelectedOptions.length-1],
+                      //         this.tableAll.tableData[i].orgName = dataFormSet.orgName,
+                      //         this.tableAll.tableData[i].remark = dataFormSet.remark,
+                      //         this.tableAll.tableData[i].stationId = dataFormSet.setSitevalue,
+                      //         this.tableAll.tableData[i].stationName = dataFormSet.stationName
+                      //         this.tableAll.tableData[i].commRelation = dataFormSet.commRelation
+                      //         this.tableAll.tableData[i].commAddress = dataFormSet.commAddress
+                      //         this.tableAll.tableData[i].localConnectUrl = dataFormSet.localConnectUrl
+                      //         this.tableAll.tableData[i].localPort = dataFormSet.localPort                             
+                      //       })                           
+                      //     }
+                      //   }
+                      // }
+                  this.$options.methods.getcommdeviceList.bind(this)()
+                  this.$refs['dataFormSet'].resetFields()
+                  this.$message({
+                    message: '操作成功',
+                    type: 'success',
+                    duration: 1500,
+                    onClose: () => {}
+                  })                
+                } else {
+                  this.$message.error(data.msg)
+                }
+              })
+            })
+          } else {
+            console.log('error submit!!')
+            return false
+          }
+        })       
+      },
+      // 获取设备型号
+      getEquipTypeLists () {
+        this.equipTypeIdLoading = true       
+        this.$http({
+          url: this.$http.adornUrl('/admin/tcommequip/condition/equiptype'),
+          method: 'post',
+          data: this.$http.adornParams({
+            'orgId': this.dataForm.orgSelectedOptions[this.dataForm.orgSelectedOptions.length-1],
+            'stationId': this.dataForm.sitevalue,
+            'channelId': this. dataForm.channelId
+          })
+        }).then(({data}) => {
+          if (data && data.code === 0) {
+            this.equipTypeIdLoading = false
+            this.equipTypeIdOptions = data.list                    
+          }
+        })
+      },
+      // 获取通道数据
+      getChannelLists () {
+        this.channelIdOptions = []
+        let orgId
+        // 判断增加修改页面还是查询调用
+        // 如果是查询调用，则orgId为搜索栏组织机构值
+        // 如果是增加修改页面调用，则orgId为修改页面组织机构值
+        if(this.addOrUpdateVisible === true) {
+          if(this.dataFormSet.setOrgSelectedOptions.length === 0) {
+            this.$message({
+              message: '请先选择组织机构',
+              type: 'success',
+              duration: 1500,
+            })
+          }else {
+            orgId = this.dataFormSet.setOrgSelectedOptions[this.dataFormSet.setOrgSelectedOptions.length -1]
+            this.channelListLoading = true       
+            this.$http({
+              url: this.$http.adornUrl('/admin/tprotocolredismaster/channel'),
+              method: 'post',
+              data: this.$http.adornParams({
+                'orgId': orgId
+              })
+            }).then(({data}) => {
+              if (data && data.code === 0) {
+                this.channelListLoading = false
+                this.channelIdOptions = data.list              
+              }
+            })
+          }
+        }else {
+          orgId = this.dataForm.orgSelectedOptions[this.dataForm.orgSelectedOptions.length -1]
+          this.channelListLoading = true        
+          this.$http({
+            url: this.$http.adornUrl('/admin/tprotocolredismaster/channel'),
+            method: 'post',
+            data: this.$http.adornParams({
+              'orgId': orgId
+            })
+          }).then(({data}) => {
+            if (data && data.code === 0) {
+              this.channelListLoading = false
+              this.channelIdOptions = data.list              
+            }
+          })
+        }       
+      },
+      // 获取站点数据
+      getsiteLists () {
+        this.siteOptions = []
+        let orgId
+        if(this.addOrUpdateVisible === true) {
+          if(this.dataFormSet.setOrgSelectedOptions.length === 0) {
+            this.$message({
+              message: '请先选择组织机构',
+              type: 'success',
+              duration: 1500,
+            })
+          }else {
+            orgId = this.dataFormSet.setOrgSelectedOptions[this.dataFormSet.setOrgSelectedOptions.length -1]
+            this.siteListLoading = true        
+            this.$http({
+              url: this.$http.adornUrl('/admin/tstation/station'),
+              method: 'post',
+              data: this.$http.adornParams({
+                'orgId': orgId
+              })
+            }).then(({data}) => {
+              if (data && data.code === 0) {
+                this.siteListLoading = false
+                this.siteOptions = data.list              
+              }
+            })
+          }
+        }else {
+          orgId = this.dataForm.orgSelectedOptions[this.dataForm.orgSelectedOptions.length -1]
+          this.siteListLoading = true     
+          this.$http({
+            url: this.$http.adornUrl('/admin/tstation/station'),
+            method: 'post',
+            data: this.$http.adornParams({
+              'orgId': orgId
+            })
+          }).then(({data}) => {
+            if (data && data.code === 0) {
+              this.siteListLoading = false
+              this.siteOptions = data.list              
+            }
+          })
+        }       
+      },
+      // 获取组织机构数据
+      getOrgLists () {
+        this.$http({
+          url: this.$http.adornUrl('/admin/tstation/org'),
+          method: 'post',
+          data: this.$http.adornParams({})
+        }).then(({data}) => {
+          if (data && data.code === 0) {
+            this.orgOptions = data.list
+            if(this.dataForm.orgSelectedOptions.length == 0) {
+              this.dataForm.orgSelectedOptions = JSON.parse(window.sessionStorage.getItem('userInfo')).orgId.split()
+            }            
+          }
+        })
+      },
+      // 获取数据列表
+      getcommdeviceList (params) {
+        if(params){
+          this.pageIndex=1
+        }
+        this.tableAll.load = true
+        this.$http({
+          url: this.$http.adornUrl('/admin/tcommequip/list'),
+          method: 'post',
+          data: this.$http.adornParams({
+            'pageNumber': this.pageIndex.toString(),
+            'pageSize': this.pageSize.toString(),
+            "entity":{
+              'orgId': this.dataForm.orgSelectedOptions.length == 0 ? JSON.parse(window.sessionStorage.getItem('userInfo')).orgId : this.dataForm.orgSelectedOptions[this.dataForm.orgSelectedOptions.length -1],
+            'channelId': this.dataForm.channelId,
+            'equipTypeId': this.dataForm.equipTypeId,
+            'stationId': this.dataForm.sitevalue
+            }
+            
+          })
+        }).then(({data}) => {
+          if (data && data.code === 0) {
+            this.tableAll.tableData = data.page.list
+            this.tableAll.total = data.page.total
+            /* this.pageIndex = data.page.pageNumber
+            this.pageSize = data.page.pageSize */
+          } else {
+            this.tableAll.tableData = []
+            this.tableAll.total = 0
+          }
+          this.tableAll.load = false
+        })     
+      },
+      // 每页数
+      sizeChangeHandle (val) {
+        this.pageSize = val
+        this.pageIndex = 1
+        this.$options.methods.getcommdeviceList.bind(this)()
+      },
+      // 当前页
+      currentChangeHandle (val) {
+        this.pageIndex = val
+        this.$options.methods.getcommdeviceList.bind(this)()
+      },
+      // 多选
+      selectionChangeHandle (val) {
+        this.dataListSelections = val
+      },
+      // 新增 / 修改
+      addcommdevice (row) {
+        this.addOrUpdateVisible = true
+        this.$nextTick(function () {
+          this.$refs['dataFormSet'].resetFields()
+        })       
+        // 修改则把改行信息传入 增加则没有
+        if(row) {
+          this.$http({
+            url: this.$http.adornUrl('/admin/tstation/station'),
+            method: 'post',
+            data: this.$http.adornParams({
+              'orgId': this.dataForm.orgSelectedOptions[this.dataForm.orgSelectedOptions.length -1]
+            })
+          }).then(({data}) => {
+            if (data && data.code === 0) {
+              this.siteOptions = data.list      
+            }
+          })
+          this.$http({
+            url: this.$http.adornUrl('/admin/tprotocolredismaster/channel'),
+            method: 'post',
+            data: this.$http.adornParams({
+              'orgId': this.dataForm.orgSelectedOptions[this.dataForm.orgSelectedOptions.length -1]
+            })
+          }).then(({data}) => {
+            if (data && data.code === 0) {
+              this.channelIdOptions = data.list
+            }
+          })
+          this.$http({
+            url: this.$http.adornUrl('/admin/tcommequip/equiptype'),
+            method: 'post',
+            data: this.$http.adornParams({
+              orgId: this.dataForm.orgSelectedOptions[this.dataForm.orgSelectedOptions.length-1]
+            })
+          }).then(({data}) => {
+            if (data && data.code === 0) {
+              this.setEquipTypeIdOptions = data.list
+            }
+          })
+          this.$http({
+              url: this.$http.adornUrl('/admin/tstation/orgName'),
+              method: 'post',
+              data: this.$http.adornData({
+                orgId: row.orgId
+              })
+            }).then(({data}) => {
+              if (data && data.code === 0) {
+                this.dataFormSet.setOrgSelectedOptions = data.list
+              }else {
+                this.dataFormSet.setOrgSelectedOptions = []
+              }
+            })
+            
+          this.$nextTick(function () {
+            // this.dataFormSet.setOrgSelectedOptions = row.orgId.split()
+            this.dialogTitle = row.commId
+            this.dataFormSet.setSitevalue = row.orgId.toString()
+
+            this.dataFormSet.setSitevalue = row.stationId.toString()
+            this.dataFormSet.channelName = row.channelId.toString()
+            this.dataFormSet.equipTypeId = row.equipTypeId
+            this.dataFormSet.commEquipName = row.commEquipName
+            this.dataFormSet.remark = row.remark
+            this.dataFormSet.commRelation = row.commRelation
+            this.dataFormSet.commAddress = row.commAddress
+            this.dataFormSet.localConnectUrl = row.localConnectUrl
+            this.dataFormSet.localPort = row.localPort
+
+
+          })         
+        }else {
+          this.dialogTitle = row
+        }        
+      },
+      // 删除
+      deletecommdevice (id) {
+        // console.log(id)
+        var commId = id ? [id] : this.dataListSelections.map(item => {
+          return item.commId
+        })
+        this.$confirm('确定删除操作?', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }).then(() => {
+          this.$http({
+            url: this.$http.adornUrl('/admin/tcommequip/delete'),
+            method: 'post',
+            data: this.$http.adornData(commId, false)
+          }).then(({data}) => {
+            if (data && data.code === 0) {
+                  this.getcommdeviceList()
+              this.$message({
+                message: '操作成功',
+                type: 'success',
+                duration: 1500,
+                onClose: () => {
+                }
+              })
+            } else {
+              this.$message.error(data.msg)
+            }
+          })
+        }).catch(() => {})
+      }
+    }
+  }
+</script>
+<style scoped>
+/* 搜索条件栏样式开始 */
+.device-form {
+  /* background-color: #eef4fa; */
+  border-radius: 5px 5px 0 0 ;
+  /* margin-bottom: 10px; */
+  height: 80px;
+  width: 100%;
+  padding: 0 10px 0 10px;
+  display: flex;
+  align-items: center;
+  text-align: justify
+}
+.device-form-item {
+  margin-bottom: 0;
+  /* flex: 1 */
+}
+.device-form-item a, .set-device-form-item a {
+  font-weight: 600;
+  font-size: 15px
+}
+/* 搜索条件栏样式结束 */
+
+/* 表格样式开始 */
+.device-list {
+  width: 100%;
+  height: 90%;
+  min-height: 90%;
+  margin: 0 auto;
+  font-size: 14px;
+  overflow-y: auto
+}
+
+/* 表格样式结束 */
+
+/* 增加修改配置页面样式开始 */
+/* .comm-device >>> .el-dialog {
+  height: 70%;
+}
+.comm-device >>> .el-dialog .el-dialog__body {
+  height: 80%;
+} */
+.set-device-form {
+  background-color: #eef4fa;
+  border-radius: 5px;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 20px 0 0 1%;
+  /* height: 100%;
+  overflow-y: auto */
+}
+.set-device-form-item >>> .el-form-item__content {
+  width: 50%;
+  display: flex;
+  flex-direction: row;
+}
+/* .set-device-form-item a {
+  flex: 1;
+  min-width: 150px;
+  text-decoration: none
+} */
+.set-device-form-item >>> .el-select, .set-device-form-item >>> .el-cascader, .set-device-form-item >>> .el-input{
+  flex: 3
+}
+.set-device-form-item >>> .el-form-item__label {
+  min-width: 180px
+}
+/* 增加修改配置页面样式结束 */
+</style>
+<style>
+.el-scrollbar__wrap {
+  overflow-x: auto;
+}
+</style>

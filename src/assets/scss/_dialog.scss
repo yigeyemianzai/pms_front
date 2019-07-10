@@ -1,0 +1,76 @@
+/*
+dialog样式 单列 开始
+*/
+.rdialog {
+    & /deep/ .el-dialog {
+        min-width: 531px
+    }
+    .rel-form {
+        min-width: 481px;
+    }
+    .rel-form-item {
+        display: flex;
+        justify-content: center
+    }
+    & /deep/ .el-form-item__label {
+        width: 36%;
+    }
+    & /deep/ .el-form-item__content{
+        width: 49%;
+    }
+    & /deep/ .el-input-number, & /deep/ .el-input, & /deep/ .el-select, & /deep/ .el-cascader, & /deep/ .el-textarea {
+        width: 74%;
+    }
+    & /deep/ .el-select .el-input, & /deep/ .el-input-number .el-input, & /deep/ .el-cascader .el-input {
+        width: 100%;
+    }
+  }
+  /*
+  dialog样式 单列 结束
+  */
+  
+  
+  /*
+  dialog样式 两列 开始
+  */
+  .ldialog {
+    & /deep/ .el-dialog {
+        min-width: 754px
+    }
+    .rel-form {
+        min-width: 710px;
+        display: flex;
+        flex-wrap: wrap;
+        align-content: space-between;
+        & /deep/ .el-input {
+            
+        }
+        .rel-form-column {
+            flex-basis: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            flex-wrap: wrap;
+        }
+        .rel-form-item-row {
+            flex: 1
+        }
+        & /deep/ .el-form-item__label {
+          width: 36%;
+        }
+        & /deep/ .el-form-item__content {
+            display: flex;
+            width: 49%;
+            height: 100%;
+            align-items: center;
+            & /deep/ .el-input-number {
+                width: 100%;
+            }
+        }
+        
+    }    
+  }
+  
+  /*
+  dialog样式 两列 结束
+  */

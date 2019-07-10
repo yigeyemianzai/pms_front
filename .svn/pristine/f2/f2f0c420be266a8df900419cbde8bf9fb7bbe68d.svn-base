@@ -1,0 +1,1073 @@
+<template>
+  <div class="cost" id="cost">
+    <el-form :inline="true" :model="secrchCostForm" @keyup.enter.native="getCostList()" class="device-form">
+      <el-form-item class="device-form-item" >
+        <el-cascader
+          :options="organizationOptions"
+          change-on-select
+          v-model="secrchCostForm.orgSelectedOptions"
+          placeholder="选择组织机构"
+        ></el-cascader>
+      </el-form-item>
+      <el-form-item class="device-form-item" >
+        <el-select 
+          v-model="secrchCostForm.energyCodeSelectedOptions" 
+          filterable placeholder="选择能源种类" clearable
+          @click.native="getEnergyCode()">
+          <el-option
+              v-for="item in energyCodeOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value">
+          </el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item class="device-form-item">
+        <el-button type="success" @click="getCostList('params')">查询</el-button>
+        <el-button v-if="isAuth(OPTAUTH_ADD)" type="primary" @click="editCost()">新增</el-button>
+        <el-button v-if="isAuth(OPTAUTH_DELETE)" type="danger" @click="deleteCost()" :disabled="dataListSelections.length <= 0">批量删除</el-button>
+      </el-form-item>
+    </el-form>
+    <!-- <el-table
+      :max-height="costTableHeight"
+      :data="costDataList"
+      border
+      stripe
+      :row-class-name="tableRowClassName"
+      @selection-change="selectionChangeHandle"
+      v-loading="dataListLoading"
+      style="width: 100%;">
+      <el-table-column
+        type="selection"
+        header-align="center"
+        align="center"
+        width="50">       
+      </el-table-column>
+      <el-table-column
+        type="index"
+        header-align="center"
+        align="center"
+        width="50">
+      </el-table-column>
+      <el-table-column
+        prop="orgName"
+        header-align="center"
+        align="center"
+        label="组织机构">
+      </el-table-column>
+      <el-table-column
+        prop="codeName"
+        header-align="center"
+        align="center"
+        label="能源种类"
+      ></el-table-column>
+      <el-table-column
+        prop="name"
+        header-align="center"
+        align="center"
+        label="费用名称">
+      </el-table-column>    
+      <el-table-column
+        prop="remark"
+        header-align="center"
+        align="center"
+        label="描述">
+      </el-table-column>
+      <el-table-column
+        fixed="right"
+        header-align="center"
+        align="center"
+        width="200"
+        label="操作">
+        <template slot-scope="scope">         
+          <el-button v-if="isAuth(OPTAUTH_UPDATE)" type="text" size="small" @click="editCost(scope.row)">修改</el-button>
+          <el-button v-if="isAuth(OPTAUTH_DELETE)" type="text" size="small" @click="deleteCost(scope.row)">删除</el-button>
+          <el-button v-if="isAuth(OPTAUTH_CONTROL)" type="text" size="small" @click="addCost(scope.row)">配置</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+    <el-pagination
+      @size-change="sizeChangeHandle"
+      @current-change="currentChangeHandle"
+      :current-page="pageIndex"
+      :page-sizes="[10, 20, 50, 100]"
+      :page-size="pageSize"
+      :total="totalPage"
+      layout="total, sizes, prev, pager, next, jumper">
+    </el-pagination> -->
+    <voTable @search="search" :table="tableAll" :pageParam="getTable" 
+       @action="action" @deleteAll="deleteAll"></voTable>
+    <!-- 配置 -->
+    <el-dialog
+      title="配置"
+      :close-on-click-modal="false"      
+      center="center"
+      :visible.sync="addOrUpdateVisible">
+      <el-form
+       :inline="true" :model="setCostForm"
+        class="device-form"
+      >
+        <el-form-item class="device-form-item">
+          <el-button v-if="isAuth(OPTAUTH_ADD)" type="primary" @click="setEditCost()">新增</el-button>
+          <el-button v-if="isAuth(OPTAUTH_DELETE)" type="danger" @click="setDeleteCost()" :disabled="setDataListSelections.length <= 0">批量删除</el-button>
+        </el-form-item>
+      </el-form>
+      <voTable @search="searchDetail" :table="tableAllDetail" :pageParam="getTableDetail" 
+       @action="actionDetail" @deleteAll="deleteAllDetail"></voTable>
+      <!-- <el-table
+        :data="costDetailDataList"
+        border
+        stripe
+        @selection-change="setSelectionChangeHandle"
+        v-loading="setDataListLoading"
+        style="width: 100%;">
+        <el-table-column
+          type="selection"
+          header-align="center"
+          align="center"
+          width="50">       
+        </el-table-column>
+        <el-table-column
+          type="index"
+          header-align="center"
+          align="center"
+          width="50">
+        </el-table-column>
+        <el-table-column
+          prop="costName"
+          header-align="center"
+          align="center"
+          label="费用名称">
+        </el-table-column>
+        <el-table-column
+          prop="costCode"
+          header-align="center"
+          align="center"
+          label="费用类型码">
+        </el-table-column>
+        <el-table-column
+          prop="price"
+          header-align="center"
+          align="center"
+          label="价格">
+        </el-table-column>
+        <el-table-column
+          prop="unitName"
+          header-align="center"
+          align="center"
+          label="价格单位码">
+        </el-table-column>
+        <el-table-column
+          fixed="right"
+          header-align="center"
+          align="center"
+          width="200"
+          label="操作">
+          <template slot-scope="scope">         
+            <el-button v-if="isAuth(OPTAUTH_UPDATE)" type="text" size="small" @click="setEditCost(scope.row)">修改</el-button>
+            <el-button v-if="isAuth(OPTAUTH_DELETE)" type="text" size="small" @click="setDeleteCost(scope.row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-pagination
+        @size-change="setSizeChangeHandle"
+        @current-change="setCurrentChangeHandle"
+        :current-page="setPageIndex"
+        :page-sizes="[10, 20, 50, 100]"
+        :page-size="setPageSize"
+        :total="setTotalPage"
+        layout="total, sizes, prev, pager, next, jumper">
+      </el-pagination> -->
+      <!-- 弹窗, 附表信息增加、修改 -->
+      <el-dialog
+        :title="dialogTitle == undefined ? '新  增' : '修  改'"
+        :close-on-click-modal="false"
+        :visible.sync="detailAddOrUpdateVisible"
+        center="center"
+        append-to-body
+        width="27.66%"
+        class="rdialog">
+        <el-form :model="setCostDataForm" @keyup.enter.native="costDataFormSubmit()" class="rel-form" :rules="costDataFormSetRule" ref="setCostDataForm">
+          <el-form-item class="rel-form-item" label="COST ID" v-if="false">
+            <el-input :disabled="true" v-model="setCostDataForm.costId"></el-input>
+          </el-form-item>
+          <el-form-item class="rel-form-item" label="费用类型" prop="costCode">
+            <el-select v-model="setCostDataForm.costCode" @click.native='getCostCodeOptions()' :disabled='isSetCostCode'>
+              <el-option
+                v-for="item in costCodeOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value">
+              </el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item class="rel-form-item" label="价格" prop="price">
+            <el-input type="number" v-model="setCostDataForm.price"></el-input>
+          </el-form-item>
+          <el-form-item class="rel-form-item" label="价格单位码" prop="peiceUnit">
+            <el-select v-model="setCostDataForm.peiceUnit" @click.native='getPeiceUnitOptions()'>
+              <el-option
+                v-for="item in peiceUnitOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value">
+              </el-option>
+            </el-select>
+          </el-form-item>
+        </el-form>
+        <span slot="footer" class="dialog-footer">
+          <el-button @click="detailAddOrUpdateVisible = false">取消</el-button>
+          <el-button type="primary" @click="costDataFormSubmit(setCostDataForm)">确定</el-button>
+        </span>
+      </el-dialog>
+    </el-dialog>   
+    <!-- 弹框, 主表信息增加修改 -->
+    <el-dialog
+      :title="mianDialogTitle == undefined ? '新  增' : '修  改'"
+      :close-on-click-modal="false"
+      :visible.sync="mainAddOrUpdateVisible"
+      center="center"
+      width="27.66%"
+      class="rdialog">
+      <el-form :model="mainSetCostDataForm" @keyup.enter.native="mainSetCostDataFormSubmit()" class="rel-form" :rules="mainSetCostDataFormSetRule" ref="mainSetCostDataForm">
+        <el-form-item class="rel-form-item" label="组织机构" prop="setOrganizationOptions">
+          <el-cascader
+            :options="organizationOptions"
+            change-on-select
+            v-model="mainSetCostDataForm.setOrganizationOptions"
+            :disabled="isSetOrg"
+          ></el-cascader>
+        </el-form-item>
+        <el-form-item class="rel-form-item" label="能源种类" prop="energyCode">
+          <el-select v-model="mainSetCostDataForm.energyCode" @click.native="getEnergyCode()" :disabled='isSetEnergyCode'>
+            <el-option
+              v-for="item in energyCodeOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value">
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item class="rel-form-item" label="费用名称" prop="name">
+          <el-input v-model="mainSetCostDataForm.name"></el-input>
+        </el-form-item>
+        <el-form-item class="rel-form-item" label="描述">
+          <el-input type="textarea" v-model="mainSetCostDataForm.remark" :autosize="{ minRows: 2, maxRows: 4}"></el-input>
+        </el-form-item>
+      </el-form>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="mainAddOrUpdateVisible = false">取消</el-button>
+        <el-button type="primary" @click="mainSetCostDataFormSubmit(mainSetCostDataForm)">确定</el-button>
+      </span>
+    </el-dialog>
+  </div>
+</template>
+<script>
+import moment from 'moment'
+import voTable from '@/components/table/table'
+import { isNumber } from '@/utils/validate'
+export default {
+  data () {
+    var validateNumber = (rule, value, callback) => {
+      if (!isNumber(value)) {
+        callback(new Error('保留两位小数'))
+      } else {
+        callback()
+      }
+    }
+    return {
+      tableAll:{
+        defaultSort:{prop:'createdTime',order:'descending'},
+        status:{disabled: false, status: '状态', isShow: false},
+        tableLabel:[         
+          {prop:'orgName',title:'组织机构',width:'150'},
+          {prop:'codeName',title:'能源种类',width:'200'},
+          {prop:'name',title:'费用名称',width:'200'},
+          {prop:'remark',title:'描述',width:'200'},
+          /* {prop:'createdTime',title:'CREATED_TIME',width:'200',sort:true,formatter:(row)=>{
+              return moment(row.createdTime).format('YYYY-MM-DD HH:mm:ss')
+            }} */
+        ],
+        tableData: [],
+        tableOption:{
+          isShow: true,
+          action: '操作',
+          width:'200',
+          buttons:[
+            {label:'修改',methods:'detail',no:'1040:4'},
+            {label:'删除',methods:'delete',no:'1040:8'},
+            {label:'配置',methods:'set'}
+          ]
+        },
+        total: 0,
+        pageIndex: 1,
+        load: false
+      },
+      /*你的请求参数*/
+      getTable:{
+        pageSize: 10,
+        pageNo: 1,
+        username: '',
+        roleId: null,
+        orderBy:''
+      },
+      tableAllDetail:{
+        defaultSort:{prop:'createdTime',order:'descending'},
+        status:{disabled: false, status: '状态', isShow: false},
+        tableLabel:[
+          {prop:'costName',title:'费用名称'},
+          {prop:'costCode',title:'费用类型码'},
+          {prop:'price',title:'价格'},
+          {prop:'unitName',title:'价格单位码'},
+          /* {prop:'createdTime',title:'CREATED_TIME',width:'200',sort:true,formatter:(row)=>{
+              return moment(row.createdTime).format('YYYY-MM-DD HH:mm:ss')
+            }} */
+        ],
+        tableData: [],
+        tableOption:{
+          isShow: true,
+          action: '操作',
+          width:'200',
+          buttons:[
+            {label:'修改',methods:'detail',no:'1040:4'},
+            {label:'删除',methods:'delete',no:'1040:8'}
+          ]
+        },
+        total: 0,
+        pageIndex: 1,
+        load: false
+      },
+      /*你的请求参数*/
+      getTableDetail:{
+        pageSize: 10,
+        pageNo: 1,
+        username: '',
+        roleId: null,
+        orderBy:''
+      },
+      // 配置 页面
+      isSetCostCode: false,
+      setCostForm: {},
+      costDetailDataList: [],
+      setDataListLoading: false,
+      isSetOrg: false,
+      isSetEnergyCode: false,
+      // 表格高度
+      costTableHeight: '',
+      // 能源种类下拉框
+      energyCodeOptions: [],
+      costDataList: [],
+      dataListLoading: false,     
+      // 价格单位码下拉框
+      peiceUnitOptions: [],
+      // 费用类型码下拉框
+      costCodeOptions: [],
+      // 主表增加、修改页面表单
+      setCostDataForm: {        
+        costId: '',
+        costCode: '',
+        price: '',
+        peiceUnit: ''
+      },
+      costDataFormSetRule: {
+        price: [
+          { required: true, message: '不能为空', trigger: 'blur' },
+          { validator: validateNumber, trigger: 'change' }
+        ],
+        costCode: [{ required: true, message: '费用类型码不能为空', trigger: 'blur' }],
+        peiceUnit: [{ required: true, message: '价格单位码不能为空', trigger: 'blur' }]
+      },
+      // 附表增加、修改页面表单
+      mainSetCostDataForm: {
+        setOrganizationOptions: [],
+        energyCode: '',
+        name: '',
+        remark: ''
+      },
+      mainSetCostDataFormSetRule: {
+        setOrganizationOptions: [{ required: true, message: '组织机构不能为空', trigger: 'blur' }],
+        energyCode: [{ required: true, message: '能源种类不能为空', trigger: 'blur' }],
+        name: [{ required: true, message: '费用名称不能为空', trigger: 'blur' }]
+      },
+      // 区分附表是新增还是修改页面
+      dialogTitle: '',
+      // 区分主表是新增还是修改页面
+      mianDialogTitle: '',
+      // 搜索表单 分别为已选组织机构 站点名称
+      secrchCostForm: {
+        orgSelectedOptions: [],
+        energyCodeSelectedOptions: ''
+      },
+      // 组织机构列表
+      organizationOptions: [],
+      // 站点名称列表
+      stationNameOptions: [],
+      // 表格数据
+      costDataList: [],
+      // 当前页
+      pageIndex: 1,
+      setPageIndex: 1,
+      // 分页大小
+      pageSize: 10,
+      setPageSize: 10,
+      // 总记录数
+      totalPage: 2,
+      setTotalPage: 2,
+      // 多选数组
+      dataListSelections: [],
+      setDataListSelections: [],
+      addOrUpdateVisible: false,
+      mainAddOrUpdateVisible: false,
+      stationNameLoading: true,
+      agreementLoading: false,
+      detailAddOrUpdateVisible: false,
+      saveCurrentRow: ''
+    }
+  },
+  components: {
+    voTable
+  },
+  created () {
+    this.costTableHeight = window.innerHeight-320    
+  },
+  mounted () {
+    // document.getElementById('cost').style.height = (window.innerHeight-170)+'px'
+    this.getOrgLists()
+    this.getCostList()
+    window.onresize = function () {
+      if(document.getElementById('cost')){
+        // document.getElementById('cost').style.height = (window.innerHeight - 170) + 'px'
+        this.costTableHeight = window.innerHeight-320
+      }
+    }   
+  },
+  methods: {
+    deleteAllDetail (obj) {
+      this.setDataListSelections = obj
+    },
+    actionDetail (obj) {
+      // console.log(obj)
+      if(obj.methods === 'detail'){
+        // console.log('这里添加详情函数')
+        this.setEditCost(obj.row)
+      }
+      if(obj.methods === 'delete'){
+        // console.log('这里添加删除函数')
+        this.setDeleteCost(obj.row)
+      }
+    },
+    searchDetail (obj) {
+      // console.log(obj)
+      this.getTableDetail.pageSize = obj.pageSize;
+      this.getTableDetail.pageNo = obj.pageNo;
+      this.getTableDetail.orderBy = obj.orderBy;
+      this.tableAllDetail.load = true
+      this.$http({
+        url: this.$http.adornUrl('/admin/tcostdetail/list'),
+        method: 'post',
+        data: this.$http.adornParams({
+          'page': obj.pageNo.toString(),
+          'limit': obj.pageSize.toString(),
+          'costId': this.saveCurrentRow.costId.toString(),
+        })
+      }).then(({data}) => {
+        if (data && data.code === 0) {
+          console.log(data.page.list)
+          this.tableAllDetail.tableData = data.page.list
+          this.tableAllDetail.total = data.page.totalCount
+          /* this.setPageIndex = data.page.currPage
+          this.setPageSize = data.page.pageSize */
+        } else {
+          this.tableAll.tableData = []
+          this.tableAll.total = 0
+        }
+        this.tableAllDetail.load = false
+      })
+    },
+    deleteAll(obj) {
+      console.log(obj)
+      this.dataListSelections = obj
+    },
+    action(obj){
+      console.log(obj)
+      if(obj.methods === 'detail'){
+        // console.log('这里添加详情函数')
+        this.editCost(obj.row)
+      }
+      if(obj.methods === 'delete'){
+        // console.log('这里添加删除函数')
+        this.deleteCost(obj.row)
+      }      
+      if(obj.methods === 'set'){
+        // console.log('配置')
+        this.addCost(obj.row)
+      }
+    },
+    search(obj){
+      // console.log(obj)
+      this.getTable.pageSize = obj.pageSize;
+      this.getTable.pageNo = obj.pageNo;
+      this.getTable.orderBy = obj.orderBy;
+      this.tableAll.load = true
+      this.$http({
+        url: this.$http.adornUrl('/admin/tcost/list'),
+        method: 'post',
+        data: this.$http.adornParams({
+          'page': obj.pageNo.toString(),
+          'limit': obj.pageSize.toString(),
+          'orgId': this.secrchCostForm.orgSelectedOptions.length == 0 ? JSON.parse(window.sessionStorage.getItem('userInfo')).orgId : this.secrchCostForm.orgSelectedOptions[this.secrchCostForm.orgSelectedOptions.length -1],
+          'energyCode': this.secrchCostForm.energyCodeSelectedOptions.toString()
+        })
+      }).then(({data}) => {
+        if (data && data.code === 0) {
+          // this.costDataList = MSDataTransfer.treeToArray(data.list, null, null, true)
+          this.tableAll.tableData =  data.page.list
+          this.tableAll.total = data.page.totalCount
+          /* this.costDataList = data.page.list
+          this.totalPage = data.page.totalCount
+          this.pageIndex = data.page.currPage
+          this.pageSize = data.page.pageSize */
+        } else {
+          this.tableAll.tableData = []
+          this.tableAll.total = 0
+        }
+        this.tableAll.load = false
+      })
+    },
+    // 提交增加、修改 费用种类页面信息
+    mainSetCostDataFormSubmit (mainSetCostDataForm) {
+      this.$refs['mainSetCostDataForm'].validate((valid) => {
+        if (valid) {
+          this.$confirm(`确定提交?`, '提示', {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning'
+          }).then(() => {
+            this.$http({
+              url: this.$http.adornUrl(`/admin/tcost/${this.mianDialogTitle == undefined ? 'save' : 'update'}`),
+              method: 'post',
+              data: this.$http.adornData({
+                'costId': this.mianDialogTitle ? this.mianDialogTitle : null,
+                'orgId': mainSetCostDataForm.setOrganizationOptions[mainSetCostDataForm.setOrganizationOptions.length-1],
+                'energyId': mainSetCostDataForm.energyCode,
+                'name': mainSetCostDataForm.name,
+                'remark': mainSetCostDataForm.remark
+              })
+            }).then(({data}) => {
+              if (data && data.code === 0) {
+                this.mainAddOrUpdateVisible = false
+                    if(this.mianDialogTitle == undefined) {                     
+                      this.tableAll.tableData.unshift(data.entity)
+                    } else {
+                      for(let i=0;i<this.tableAll.tableData.length;i++) {
+                        if(this.tableAll.tableData[i].costId == data.entity.costId) {
+                          this.tableAll.tableData[i].codeName = data.entity.codeName,
+                          this.tableAll.tableData[i].costId = data.entity.costId,
+                          this.tableAll.tableData[i].energyId = data.entity.energyId,
+                          this.tableAll.tableData[i].name = data.entity.name,
+                          this.tableAll.tableData[i].orgId = data.entity.orgId,
+                          this.tableAll.tableData[i].orgName = data.entity.orgName,
+                          this.tableAll.tableData[i].remark = data.entity.remark
+                        }
+                      }
+                    }
+                this.$message({
+                  message: '操作成功',
+                  type: 'success',
+                  duration: 1500,
+                  onClose: () => {
+                    
+                    // this.$refs['mainSetCostDataForm'].resetFields()
+                    // this.$options.methods.getCostList.bind(this)()
+                  }
+                })
+              } else {
+                this.$message.error(data.msg)
+              }
+            })
+            
+          })
+        } else {
+          console.log('error submit!!')
+          return false;
+        }
+      })
+    },
+    // 提交增加、修改子信息 页面信息
+    costDataFormSubmit (setCostDataForm) {
+      this.$refs['setCostDataForm'].validate((valid) => {
+        if (valid) {
+          this.$confirm(`确定提交?`, '提示', {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning'
+          }).then(() => {
+            this.$http({
+              url: this.$http.adornUrl(`/admin/tcostdetail/${this.dialogTitle == undefined ? 'save' : 'update'}`),
+              method: 'post',
+              data: this.$http.adornData({
+                'id': this.dialogTitle ? this.dialogTitle.toString() : null,
+                'costId': this.saveCurrentRow.costId.toString(),
+                'costCode': setCostDataForm.costCode.toString(),
+                'price': setCostDataForm.price,
+                'peiceUnit': setCostDataForm.peiceUnit.toString()
+              })
+            }).then(({data}) => {
+              if (data && data.code === 0) {
+                this.detailAddOrUpdateVisible = false
+                    if(this.dialogTitle == undefined) {
+                      this.tableAllDetail.tableData.unshift(data.entity)
+                    } else {
+                      for(let i=0;i<this.tableAllDetail.tableData.length;i++){
+                        if(this.tableAllDetail.tableData[i].id == data.entity.id) {
+                          this.tableAllDetail.tableData[i].costCode = data.entity.costCode
+                          this.tableAllDetail.tableData[i].costId = data.entity.costId
+                          this.tableAllDetail.tableData[i].costName = data.entity.costName
+                          this.tableAllDetail.tableData[i].id = data.entity.id
+                          this.tableAllDetail.tableData[i].name = data.entity.name
+                          this.tableAllDetail.tableData[i].peiceUnit = data.entity.peiceUnit
+                          this.tableAllDetail.tableData[i].price = data.entity.price
+                          this.tableAllDetail.tableData[i].unitName = data.entity.unitName
+                        }
+                      }
+                    }
+                this.$message({
+                  message: '操作成功',
+                  type: 'success',
+                  duration: 1500,
+                  onClose: () => {
+                    
+                    // this.$refs['setCostDataForm'].resetFields()
+                    // this.addCost(this.saveCurrentRow)
+                  }
+                })
+              } else {
+                this.$message.error(data.msg)
+              }
+            })            
+          })
+        } else {
+          console.log('error submit!!')
+          return false;
+        }
+      })
+    },
+    // 获取组织机构数据
+    getOrgLists () {  
+      this.$http({
+        url: this.$http.adornUrl('/admin/tstation/org'),
+        method: 'post',
+        params: this.$http.adornParams({})
+      }).then(({data}) => {
+        if (data && data.code === 0) {
+          this.organizationOptions = data.list
+          // let arr = []
+          // this.$options.methods.f.bind(this)(data.list)
+          // this.organizationOptions = data.list
+          if(this.secrchCostForm.orgSelectedOptions.length == 0) {
+            this.secrchCostForm.orgSelectedOptions = JSON.parse(window.sessionStorage.getItem('userInfo')).orgId.split() 
+          }         
+        }
+      })      
+    },
+    fn(data){
+      for(let i=0;i<data.length;i++){
+        if(data.children && data.children.length >= 1) {
+          this.$options.methods.f.bind(this)(data.children)
+        } else {
+          data[i].label = data[i].orgName
+          data[i].value = data[i].orgId
+        }        
+      }
+    },
+    // 获取数据列表
+    getCostList (params) {
+      if(params){
+          this.pageIndex=1
+        }
+      // console.log(this.secrchCostForm)
+      // this.dataListLoading = true
+      this.tableAll.load = true
+      this.$http({
+        url: this.$http.adornUrl('/admin/tcost/list'),
+        method: 'post',
+        data: this.$http.adornParams({
+          'page': this.getTable.pageNo.toString(),
+          'limit': this.getTable.pageSize.toString(),
+          'orgId': this.secrchCostForm.orgSelectedOptions.length == 0 ? JSON.parse(window.sessionStorage.getItem('userInfo')).orgId : this.secrchCostForm.orgSelectedOptions[this.secrchCostForm.orgSelectedOptions.length -1],
+          'energyCode': this.secrchCostForm.energyCodeSelectedOptions.toString()
+        })
+      }).then(({data}) => {
+        if (data && data.code === 0) {
+          // this.costDataList = MSDataTransfer.treeToArray(data.list, null, null, true)
+          this.tableAll.tableData =  data.page.list
+          this.tableAll.total = data.page.totalCount
+          /* this.costDataList = data.page.list
+          this.totalPage = data.page.totalCount
+          this.pageIndex = data.page.currPage
+          this.pageSize = data.page.pageSize */
+        } else {
+          this.tableAll.tableData = []
+          this.tableAll.total = 0
+        }
+        this.tableAll.load = false
+        // this.dataListLoading = false
+      })
+    },
+    // 每页数
+    /* sizeChangeHandle (val) {
+      this.pageSize = val
+      this.pageIndex = 1
+      this.$options.methods.getCostList.bind(this)()
+    }, */
+    /* setSizeChangeHandle (val) {
+      this.setPageSize = val
+      this.setPageIndex = 1
+      this.$options.methods.getSetList.bind(this)()
+    }, */
+    // 当前页
+    /* currentChangeHandle (val) {
+      this.pageIndex = val
+      this.$options.methods.getCostList.bind(this)()
+    }, */
+    /* setCurrentChangeHandle (val) {
+      this.setPageIndex = val
+      this.$options.methods.getSetList.bind(this)()
+    }, */
+    // 多选
+    selectionChangeHandle (val) {
+      this.dataListSelections = val
+    },
+    setSelectionChangeHandle (val) {
+      this.setDataListSelections = val
+    },
+    // 删除/批量删除
+    deleteCost(row) {
+      let cid
+      if(row) {
+        cid = row.costId
+      }     
+      var costId = cid ? [cid] : this.dataListSelections.map(item => {
+        return item.costId
+      })
+      this.$confirm('确定删除操作?', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(() => {
+        this.$http({
+          url: this.$http.adornUrl('/admin/tcost/delete'),
+          method: 'post',
+          data: this.$http.adornData(costId, false)
+        }).then(({data}) => {
+          if (data && data.code === 0) {
+                this.getCostList()
+            this.$message({
+              message: '操作成功',
+              type: 'success',
+              duration: 1500,
+              onClose: () => {
+              }
+            })
+          } else {
+            this.$message.error(data.msg)
+          }
+        })
+      }).catch(() => {})
+    },
+    // 主表 新增 / 修改
+    editCost (row) {
+      if (this.$refs['mainSetCostDataForm'] !== undefined) {
+        this.$nextTick(function () {
+          this.$refs['mainSetCostDataForm'].resetFields()
+        })
+      }      
+      if(row){
+        this.isSetOrg = true
+        this.isSetEnergyCode = true
+        this.$options.methods.getEnergyCode.bind(this)()
+        this.mainAddOrUpdateVisible = true
+        this.$http({
+          url: this.$http.adornUrl(`/admin/tcost/info/${row.costId}`),
+          method: 'get',
+          params: this.$http.adornParams()
+        }).then(({
+          data
+        }) => {
+          if (data && data.code === 0) {
+            this.mianDialogTitle = data.tCost.costId
+            this.mainSetCostDataForm.energyCode =  JSON.parse(data.tCost.energyId)
+            this.mainSetCostDataForm.setOrganizationOptions = data.tCost.orgId.split(),
+            this.mainSetCostDataForm.name = data.tCost.name
+            this.mainSetCostDataForm.remark = data.tCost.remark
+          }
+        })
+        /* this.$nextTick(() => {
+          
+          this.mianDialogTitle = row.costId
+          this.mainSetCostDataForm.energyCode =  JSON.parse(row.energyId)
+          this.mainSetCostDataForm.setOrganizationOptions = row.orgId.split(),
+          this.mainSetCostDataForm.name = row.name
+          this.mainSetCostDataForm.remark = row.remark
+        })   */       
+      }else {
+        this.isSetOrg = false
+        this.isSetEnergyCode = false
+        this.$nextTick(() => {
+          this.mainAddOrUpdateVisible = true
+          this.mianDialogTitle = row
+          this.mainSetCostDataForm.setOrganizationOptions = []
+          this.mainSetCostDataForm.energyCode = ''
+          this.mainSetCostDataForm.name = ''
+          this.mainSetCostDataForm.remark = ''
+        })    
+      }
+    },
+    // 获取配置页列表
+    getSetList (params) {
+      this.tableAllDetail.load = true
+      if(params){
+        this.setPageIndex =1
+      }
+      this.$http({
+        url: this.$http.adornUrl('/admin/tcostdetail/list'),
+        method: 'post',
+        data: this.$http.adornParams({
+          'page': this.getTableDetail.pageNo.toString(),
+          'limit': this.getTableDetail.pageSize.toString(),
+          'costId': this.saveCurrentRow.costId.toString(),
+        })
+      }).then(({data}) => {
+        if (data && data.code === 0) {
+          this.tableAllDetail.tableData = data.page.list
+          this.tableAllDetail.total = data.page.totalCount
+          /* this.costDetailDataList = data.page.list
+          this.setTotalPage = data.page.totalCount
+          this.setPageIndex = data.page.currPage
+          this.setPageSize = data.page.pageSize */
+        } else {
+          this.tableAll.tableData = []
+          this.tableAll.total = 0
+        }
+        // this.setDataListLoading = false
+        this.tableAllDetail.load = false
+      })
+    },
+    // 配置
+    addCost (row) {
+      this.saveCurrentRow = row
+      this.addOrUpdateVisible = true
+      this.setDataListLoading = true
+      this.$options.methods.getSetList.bind(this)()
+    },
+    // 获取能源种类下拉框信息
+    getEnergyCode () {
+      this.$http({
+        url: this.$http.adornUrl('/admin/tcost/energy'),
+        method: 'post',
+        data: this.$http.adornParams({})
+      }).then(({data}) => {
+        if(data && data.code === 0) {
+          this.energyCodeOptions = data.list
+        }
+      })
+    },
+    // 费用类型码
+    getCostCodeOptions (costId) {
+      this.$http({
+        url: this.$http.adornUrl('/admin/tcostdetail/costcode'),
+        method: 'post',
+        data: this.$http.adornParams({
+          costId: costId ? costId.toString() : this.saveCurrentRow.costId.toString()
+        })
+      }).then(({data}) => {
+        if(data && data.code === 0) {
+          this.costCodeOptions = data.list
+        }
+      })
+    },
+    // 价格单位码
+    getPeiceUnitOptions (costId) {
+      this.$http({
+        url: this.$http.adornUrl('/admin/tcostdetail/peiceunit'),
+        method: 'post',
+        data: this.$http.adornParams({
+          costId: costId ? costId.toString() : this.saveCurrentRow.costId.toString()
+        })
+      }).then(({data}) => {
+        if(data && data.code === 0) {
+          this.peiceUnitOptions = data.list
+        }
+      })     
+    },
+    // 配置页面 新增 / 修改
+    setEditCost (row) {
+      this.detailAddOrUpdateVisible = true
+      if (this.$refs['setCostDataForm'] !== undefined) {
+        this.$nextTick(function () {
+          this.$refs['setCostDataForm'].resetFields()
+        })
+      } 
+      if(row) {
+        console.log(row)
+        this.isSetCostCode = true
+        this.$options.methods.getCostCodeOptions.bind(this)(row.costId)
+        this.$options.methods.getPeiceUnitOptions.bind(this)(row.costId)
+        this.$http({
+          url: this.$http.adornUrl(`/admin/tcostdetail/info/${row.id}`),
+          method: 'get',
+          params: this.$http.adornParams()
+        }).then(({
+          data
+        }) => {
+          if (data && data.code === 0) {
+            this.dialogTitle = data.tCostDetail.id
+            this.setCostDataForm.costId = data.tCostDetail.costId
+            this.setCostDataForm.costCode = JSON.parse(data.tCostDetail.costCode)
+            this.setCostDataForm.peiceUnit = data.tCostDetail.unitName
+            this.setCostDataForm.price = data.tCostDetail.price 
+          }
+        })
+        // this.$nextTick(() => {
+        //   this.dialogTitle = row.id
+        //   this.setCostDataForm.costId = row.costId
+        //   this.setCostDataForm.costCode = JSON.parse(row.costCode)
+        //   this.setCostDataForm.peiceUnit = JSON.parse(row.peiceUnit)
+        //   this.setCostDataForm.price = row.price 
+        // })
+      } else {
+        this.isSetCostCode = false
+        this.$nextTick(() => {
+          this.dialogTitle = row
+          this.setCostDataForm.costId = ''
+          this.setCostDataForm.costCode = ''
+          this.setCostDataForm.peiceUnit = ''
+          this.setCostDataForm.price = ''
+        })
+      }
+    },
+    // 删除
+    setDeleteCost (row) {
+      let cid
+      if(row) {
+        cid = row.id
+      }     
+      var costId = cid ? [cid] : this.setDataListSelections.map(item => {
+        return item.id
+      })
+      this.$confirm('确定删除操作?', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(() => {
+        this.$http({
+          url: this.$http.adornUrl('/admin/tcostdetail/delete'),
+          method: 'post',
+          data: this.$http.adornData(costId, false)
+        }).then(({data}) => {
+          if (data && data.code === 0) {
+            this.detailAddOrUpdateVisible = false
+                this.addCost(this.saveCurrentRow)
+            this.$message({
+              message: '操作成功',
+              type: 'success',
+              duration: 1500,
+              onClose: () => {
+                
+              }
+            })
+          } else {
+            this.$message.error(data.msg)
+          }
+        })
+      }).catch(() => {})
+    },
+    // 隔行变色
+    /* tableRowClassName({row, rowIndex}) {
+      if (rowIndex%2 === 0) {
+        return 'warning-row';
+      } else if (rowIndex%2 === 1) {
+        return 'success-row';
+      }
+      return '';
+    }, */
+  }
+}
+</script>
+<style scoped>
+/* 搜索条件栏样式开始 */
+.device-form {
+  /* background-color: #eef4fa; */
+  border-radius: 5px 5px 0 0;
+ /*  margin-bottom: 10px; */
+  height: 80px;
+  width: 100%;
+  padding: 0 10px 0 10px;
+  display: flex;
+  align-items: center;
+  text-align: justify
+}
+.device-form-item {
+  margin-bottom: 0;
+  /* flex: 1 */
+}
+.device-form-item a, .set-device-form-item a {
+  font-weight: 600;
+  font-size: 15px
+}
+/* 搜索条件栏样式结束 */
+
+/* 表格样式开始 */
+
+.demo-table-expand {
+  font-size: 0;
+}
+.demo-table-expand label {
+  width: 90px;
+  color: #99a9bf;
+}
+.demo-table-expand .el-form-item {
+  margin-right: 0;
+  margin-bottom: 0;
+  width: 50%;
+}
+/* 表格样式结束 */
+
+/* 增加修改配置页面样式开始 */
+/* .redius >>> .el-dialog {
+  height: 70%;
+}
+.redius >>> .el-dialog .el-dialog__body {
+  height: 80%;
+} */
+.set-device-form {
+  background-color: #eef4fa;
+  border-radius: 5px;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 20px 0 0 0;
+  /* height: 100%;
+  overflow-y: auto */
+}
+.set-device-form-item >>> .el-form-item__content {
+  width: 50%;
+  display: flex;
+  flex-direction: row;
+}
+.set-device-form-item >>> .el-form-item__label {
+  min-width: 180px
+}
+/* .set-device-form-item a {
+  flex: 1;
+  min-width: 160px;
+  text-decoration: none
+} */
+.set-device-form-item >>> .el-select, .set-device-form-item >>> .el-cascader, .set-device-form-item >>> .el-input, .set-device-form-item >>> .el-input-number {
+  flex: 2
+}
+/* 增加修改配置页面样式结束 */
+</style>
+<style lang="scss" scoped>
+@import "../../../../assets/scss/_dialog.scss"
+</style>

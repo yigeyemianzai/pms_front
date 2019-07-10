@@ -1,0 +1,668 @@
+<template>
+  <nav class="site-navbar" :class="'site-navbar--' + navbarLayoutType">
+    <h1 class="site-navbar__header"><img src="../assets/images/building.png" class="nav_img1">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<img src="../assets/images/nav-title.png"></h1>
+    <el-menu
+      class="site-navbar__menu site-navbar__menu--right"
+      mode="horizontal">
+      <el-menu-item index="1" class="site-navbar__avatar hidden-sm-and-down" @click="handleCommandOrdinary">
+        <template slot="title">
+          <el-row style="width:100px;color:#ffde00">
+            <el-col :span="6">
+              <!-- <el-badge :value="ordinaryDatas" class="item">
+                <icon-svg name="weiwangguanicon-defuben--copy" width="1.2em" height="1.2em"></icon-svg>
+              </el-badge> -->
+              <i class="icon-warning" style="color:#f3e43b"></i>
+            </el-col>
+            <el-col :span="14" style="color:#333333;font-weight:600">普通告警</el-col>
+          </el-row>
+        </template>
+      </el-menu-item>
+      <el-menu-item index="2" class="site-navbar__avatar hidden-sm-and-down" @click="handleCommandEquipment">
+        <template slot="title">
+          <el-row style="width:100px;color:#ff7800">
+            <el-col :span="6">
+              <!-- <el-badge :value="equipmentDatas" class="item">
+                <icon-svg name="weiwangguanicon-defuben--copy1" width="1.2em" height="1.2em"></icon-svg>
+              </el-badge> -->
+              <i class="icon-warning" style="color:#e8772c"></i>
+            </el-col>
+            <el-col :span="14" style="color:#333333;font-weight:600">设备告警</el-col>
+          </el-row>
+        </template>
+      </el-menu-item>
+      <el-menu-item index="3" class="site-navbar__avatar hidden-sm-and-down" @click="handleCommandUrgent">
+        <template slot="title">
+          <el-row style="width:120px;color:#ff0000">
+            <el-col :span="6">
+              <!-- <el-badge :value="urgentDatas" class="item">
+                <icon-svg name="weiwangguanicon-defuben--copy2" width="1.2em" height="1.2em"></icon-svg>
+              </el-badge> -->
+              <i class="icon-warning" style="color:#ef344a"></i>
+            </el-col>
+            <el-col :span="14" style="color:#333333;font-weight:600">需求响应事件</el-col>
+          </el-row>
+        </template>
+      </el-menu-item>
+      <el-menu-item index="4" class="site-navbar__avatar hidden-sm-and-down">
+        <template slot="title">
+          <el-row style="width:120px;color:#ff0000">
+            <el-col :span="6">
+              <!-- <el-badge class="item">
+                <icon-svg name="weiwangguanicon-defuben--copy2" width="1.2em" height="1.2em"></icon-svg>
+              </el-badge> -->
+              <i class="icon-warning" style="color:#9845f5"></i>
+            </el-col>
+            <el-col :span="14" style="color:#333333;font-weight:600">系统事件</el-col>
+          </el-row>
+        </template>
+      </el-menu-item>
+      <el-menu-item class="site-navbar__avatar" index="4">
+        <el-dropdown :show-timeout="0" placement="bottom">
+          <span class="el-dropdown-link">
+            <img src="~@/assets/images/avatar.png" :alt="userName">{{ userName }}
+          </span>
+          <el-dropdown-menu slot="dropdown">
+            <el-dropdown-item @click.native="updatePasswordHandle()">修改密码</el-dropdown-item>
+            <el-dropdown-item @click.native="logoutHandle()">退出</el-dropdown-item>
+          </el-dropdown-menu>
+        </el-dropdown>
+      </el-menu-item>
+    </el-menu>
+    <el-dialog title="普通警告" :visible.sync="dialogTableVisible" :append-to-body="true" class="dialogstyle">
+      <table class="dialogTable">
+        <thead>
+          <tr>
+            <td>编号</td>
+            <td>时间</td>
+            <td>描述</td>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-if="ordinaryData == ''">
+            <td colspan='3'>暂无数据</td>
+          </tr>
+          <tr v-for="item in ordinaryData" :key="item.id" v-else>
+            <td>{{item.id}}</td>
+            <td>{{item.alarmTime | change}}</td>
+            <td>{{item.alarmDescribe}}</td>
+          </tr>
+        </tbody>
+      </table>
+    </el-dialog>
+    <el-dialog title="设备警告" :visible.sync="dialogEquipmentVisible" :append-to-body="true" class="dialogstyle">
+      <table class="dialogTable">
+        <thead>
+          <tr>
+            <td>编号</td>
+            <td>时间</td>
+            <td>描述</td>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-if="equipmentData == ''">
+            <td colspan='3'>暂无数据</td>
+          </tr>
+          <tr v-for="item in equipmentData" :key="item.id" v-else>
+            <td>{{item.id}}</td>
+            <td>{{item.alarmTime | change}}</td>
+            <td>{{item.alarmDescribe}}</td>
+          </tr>
+        </tbody>
+      </table>
+    </el-dialog>
+    <el-dialog title="需求响应" :visible.sync="dialogDemandVisible" :append-to-body="true" class="dialogstyle">
+      <el-tabs v-model="activeName" @tab-click="handleClick">
+        <el-tab-pane label="紧急需求响应" name="ungent">
+          <table class="dialogTable">
+            <thead>
+              <tr>
+                <td>编号</td>
+                <td>时间</td>
+                <td>描述</td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="urgentData == ''">
+                <td colspan='3'>暂无数据</td>
+              </tr>
+              <tr v-for="item in urgentData" :key="item.id" v-else>
+                <td>{{item.id}}</td>
+                <td>{{item.eventTime | change1}}</td>
+                <td>{{item.eventDescribe}}</td>
+              </tr>
+            </tbody>
+          </table>
+        </el-tab-pane>
+        <el-tab-pane label="非紧急需求响应" name="nonurgent">
+          <table class="dialogTable">
+            <thead>
+              <tr>
+                <td>编号</td>
+                <td>时间</td>
+                <td>描述</td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="nonurgentData == ''">
+                <td colspan='3'>暂无数据</td>
+              </tr>
+              <tr v-for="item in nonurgentData" :key="item.id" v-else>
+                <td>{{item.id}}</td>
+                <td>{{item.eventTime | change1}}</td>
+                <td>{{item.eventDescribe}}</td>
+              </tr>
+              
+            </tbody>
+          </table>
+        </el-tab-pane>
+      </el-tabs>
+    </el-dialog>
+    <!-- 弹窗, 修改密码 -->
+    <update-password v-if="updatePassowrdVisible" ref="updatePassowrd"></update-password>
+  </nav>
+</template>
+
+<script>
+  import UpdatePassword from './main-navbar-update-password'
+  import { changeTime } from '@/utils/index'
+  import { clearLoginInfo } from '@/utils'
+  export default {
+    data () {
+      return {
+        updatePassowrdVisible: false,     
+        websock1: null,
+        websock2: null,
+        websock3: null,
+        websockData: '',
+        // dropDataDemand: '',  // 需求响应信息数据        
+        urgentDatas: '',
+        // dropDataEquipment: '',  // 设备警告信息
+        equipmentDatas: '',
+        // dropDataOrdinary: '',  // 普通警告信息
+        ordinaryDatas: '',
+        ordinaryData: [],  // 普通警告
+        dialogTableVisible: false,
+        equipmentData: [],
+        dialogEquipmentVisible: false,
+        dialogDemandVisible: false,
+        urgentData: [],
+        nonurgentData: [],
+        activeName: 'ungent',
+        aa: '', // 记录弹框打开时websocket消息--普通告警
+        bb: '', // 记录弹框打开时websocket消息--设备告警
+        cc: '',
+        dd: '' , // 记录弹框打开时websocket消息--需求响应事件
+        clickA: 0,   // 用于记录普通告警信息的点击次数，当有新消息来时，归0，点击一次+1，当不是第一次点击时，列表数据清空
+        clickB: 0,  // 用于记录设备告警信息的点击次数，当有新消息来时，归0，点击一次+1，当不是第一次点击时，列表数据清空
+        clickC: 0
+      }
+    },
+    components: {
+      UpdatePassword
+    },
+    computed: {
+      navbarLayoutType: {
+        get () { return this.$store.state.common.navbarLayoutType }
+      },
+      sidebarFold: {
+        get () { return this.$store.state.common.sidebarFold },
+        set (val) { this.$store.commit('common/updateSidebarFold', val) }
+      },
+      mainTabs: {
+        get () { return this.$store.state.common.mainTabs },
+        set (val) { this.$store.commit('common/updateMainTabs', val) }
+      },
+      userName: {
+        get () { return this.$store.state.user.name }
+      }
+    },
+    created () {
+      this.initWebSocket ()
+    },
+    mounted () {
+      
+    },
+    watch: {
+      // 判断是否在紧急需求响应页面 在的话就清空顶部消息提示
+      $route: 'routers'
+    },
+    
+    methods: {
+      // 状态值转换  0 未读  1 已读
+      changeMaarker(cellValue) {
+        if(cellValue.alarmMaarker == '0') {
+          return '未读'
+        }else if(cellValue.alarmMaarker == '1') {
+          return '已读'
+        }
+      },
+      
+      // 判断路由
+      routers () {
+        // console.log(this.$route.fullPath.split('?')[0])
+        if(this.$route.fullPath.split('?')[0] === '/interactive-non-urgent'){
+          this.urgentDatas = ''
+          //this.dropData = ''
+        }else {
+          /* this.urgentDatas = this.websockData.demand.value
+          this.urgentData = this.websockData.demand.msg[0].msg
+          this.nonurgentData = this.websockData.demand.msg[1].msg
+          this.equipmentDatas = this.websockData.equipment.el-color-dropdown__value
+          this.ordinaryDatas = this.websockData.ordinary.value
+          this.ordinaryData = this.websockData.ordinary.msg
+          this.equipmentData = this.websockData.equipment.msg */
+          // console.log(this.urgentData)
+        }
+      },
+      // 点击需求响应提示信息 跳转至页面
+      toUrgent () {
+        // this.$router.push('/interactive-non-urgent')
+      },
+      // 普通告警点击 
+      handleCommandOrdinary (command) {
+        this.clickA = this.clickA + 1
+        // console.log(this.clickA)
+        if(this.aa != '' && this.clickA == 1){
+          this.ordinaryData = this.aa
+        }else if(this.clickA != 1) {
+          this.ordinaryData = []
+        }
+        // console.log(command)
+        this.$http({
+          url: this.$http.adornUrl('/device/alarm/common'),
+          method: 'post',
+          data: this.$http.adornData({
+            'alarmType': 1700
+          })
+        }).then(({data}) => {})
+        this.dialogTableVisible = true
+        this.ordinaryDatas = ''
+      },
+      // 设备告警点击
+      handleCommandEquipment (command) {
+        // console.log(this.equipmentData)
+        this.clickB = this.clickB + 1
+        if(this.bb != '' && this.clickB == 1) {
+          this.equipmentData = this.bb
+        }else if(this.clickB != 1) {
+          this.equipmentData = []
+        }
+        // console.log(command)
+        this.$http({
+          url: this.$http.adornUrl('/device/alarm/equip'),
+          method: 'post',
+          data: this.$http.adornData({
+            'alarmType': 1701
+          })
+        }).then(({data}) => {})
+        this.dialogEquipmentVisible = true
+        this.equipmentDatas = ''
+      },
+      // 需求响应事件点击
+      handleCommandUrgent (command) {
+        this.clickC = this.clickC + 1
+        if(this.cc != '' && this.clickC == 1){
+          this.urgentData = this.cc
+        }else if(this.clickC != 1) {
+          this.urgentData = []
+        }
+        this.dialogDemandVisible = true
+        this.urgentDatas =''
+        this.$http({
+          url: this.$http.adornUrl('/device/alarm/urgent'),
+          method: 'post',
+          data: this.$http.adornData({
+            'eventType': 1800
+          })
+        }).then(({data}) => {})
+      },
+      // 需求响应事件下拉框点击
+      /* handleCommandUrgent(command) {
+        console.log(command)
+        this.$router.push({path: '/interactive-non-urgent',query: {id: command})
+      }, */
+      // 修改密码
+      updatePasswordHandle () {
+        this.updatePassowrdVisible = true
+        this.$nextTick(() => {
+          this.$refs.updatePassowrd.init()
+        })
+      },
+      // 退出
+      logoutHandle () {
+        this.$confirm(`确定进行[退出]操作?`, '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }).then(() => {
+          this.$http({
+            url: this.$http.adornUrl('/sys/logout'),
+            method: 'post',
+            data: this.$http.adornData()
+          }).then(({data}) => {
+            if (data && data.code === 0) {
+              clearLoginInfo()
+              this.$router.push({ name: 'login' })
+            }
+          })
+        }).catch(() => {})
+      },
+      initWebSocket () {
+        // 普通告警websocket
+        // let token = '6532c4a6c11388e5d56d440d6081e802'
+        let token = this.$cookie.get('token')
+        this.websock1 = new WebSocket(window.SITE_CONFIG.wsBaseUrl+token+'/'+'warning'+'/'+'common')
+        // this.websock1 = new WebSocket("ws://123.207.167.163:9010/ajaxchattest")
+        // 建立 web socket 连接成功触发事件
+        let _this = this
+        this.websock1.onopen = function () {
+          // 使用 send() 方法发送数据
+          _this.websock1.send('')
+          // alert("数据发送中...")
+        }
+        // WebSocket连接发生错误
+        this.websock1.onerror = function (evt) {
+          //console.log("WebSocket连接发生错误")
+        }
+        // 接收服务端数据时触发事件
+        this.websock1.onmessage = function (evt) {
+          // console.log(evt)
+          // console.log(_this.dialogTableVisible == false) 
+         _this.ordinaryDatas = JSON.parse(evt.data).count
+          _this.clickA = 0       
+          if(_this.dialogTableVisible == true) {
+            _this.aa = JSON.parse(evt.data).list
+          }else if(_this.dialogTableVisible == false){
+            _this.ordinaryData = JSON.parse(evt.data).list
+            _this.aa = ''
+          }
+          
+         /* let v = [], i=0
+          setInterval(function() {
+            _this.clickA = 0
+            i=i+1
+            v=v.concat([{
+            "alarmDescribe":"一般告警2",
+            "alarmMaarker":0,
+            "alarmTime":1537502790000,
+            "alarmType":1700,
+            "equipId":1000000001,
+            "id":i,
+            "pointId":10037,
+            "stationId":1000,
+          }])
+          console.log(v)
+          _this.ordinaryDatas = i
+          if(_this.dialogTableVisible == true) {
+            _this.aa = v
+          }else if(_this.dialogTableVisible == false){
+            _this.ordinaryData = v
+            _this.aa = ''
+          }         
+          },10000) */
+          
+          
+          /*let data = { 'demand': {id: 1,
+                      value: '3',
+                      msg: [{id: '1', name: '消息1'},
+                          {id: '2', name: '消息2'},
+                          {id: '3', name: '消息3'}]      
+                      }, */
+                      /* 'demand': {id: 1,
+                      value: '6',
+                      msg: [{
+                          id: '1',
+                          msg: [{id: '1', date: '2018-05-02', name: '消息1', value: 'XXXXXXX'},
+                          {id: '2', date: '2018-05-04', name: '消息2', value: 'XXXXXXX'},
+                          {id: '3', date: '2018-05-06', name: '消息3', value: 'XXXXXXX'}]
+                          },{
+                          id: '2',
+                          msg: [{id: '1', date: '2018-05-02', name: '消息1', value: 'XXXXXXX'},
+                          {id: '2', date: '2018-05-04', name: '消息2', value: 'XXXXXXX'},
+                          {id: '3', date: '2018-05-06', name: '消息3', value: 'XXXXXXX'}]
+                          }]    
+                      },
+                      'equipment': {id: 2,
+                      value: '2',
+                      msg: [{id: '1', date: '2018-05-02', name: '警告1', value: 'XXXXXXX'},
+                          {id: '2', date: '2018-05-04', name: '警告2', value: 'XXXXXXX'}]      
+                      },
+                      'ordinary': {id: 3,
+                      value: '1',
+                      msg: [{id: '1', date: '2018-05-02', name: '警告1', value: 'XXXXXXX'}]      
+                      }
+                    }
+          _this.websockData = data */
+          // _this.$options.methods.routers.bind(_this)()
+          // alert("数据已接收...")
+        }
+        // 断开 web socket 连接成功触发事件
+        this.websock1.onclose = function () {
+          // alert("连接已关闭...")
+        }
+
+        // 设备告警websocket
+        this.websock2 = new WebSocket(window.SITE_CONFIG.wsBaseUrl+token+'/'+'warning'+'/'+'equipment')
+        /// this.websock2 = new WebSocket("ws://123.207.167.163:9010/ajaxchattest")
+        // 建立 web socket 连接成功触发事件
+        this.websock2.onopen = function () {
+          // 使用 send() 方法发送数据
+          _this.websock2.send('')
+          // alert("数据发送中...")
+        }
+        // WebSocket连接发生错误
+        this.websock2.onerror = function (evt) {
+         // console.log("WebSocket连接发生错误")
+        }
+        // 接收服务端数据时触发事件
+        this.websock2.onmessage = function (evt) {
+          // console.log(evt.data.count)
+          /* _this.equipmentDatas = JSON.parse(evt.data).count
+          _this.equipmentData = JSON.parse(evt.data).list */
+          _this.clickB = 0
+           _this.equipmentDatas = JSON.parse(evt.data).count        
+          if(_this.dialogEquipmentVisible == true) {
+            _this.bb = JSON.parse(evt.data).list
+          }else if(_this.dialogEquipmentVisible == false){
+            _this.equipmentData = JSON.parse(evt.data).list
+            _this.bb = ''
+          }
+
+
+          /* let v = [], i=0
+          setInterval(function() {
+            _this.clickB = 0
+            i=i+1
+            v=v.concat([{
+            "alarmDescribe":"一般告警2",
+            "alarmMaarker":0,
+            "alarmTime":1537502790000,
+            "alarmType":1700,
+            "equipId":1000000001,
+            "id":i,
+            "pointId":10037,
+            "stationId":1000,
+          }])
+           _this.equipmentDatas = i     
+          if(_this.dialogEquipmentVisible == true) {
+            // alert(1)
+            _this.bb = v
+          }else if(_this.dialogEquipmentVisible == false){
+            // alert(2)
+            _this.equipmentData = v
+            _this.bb = ''
+          }
+          },5000) */
+
+
+          // _this.$options.methods.routers.bind(_this)()
+          // alert("数据已接收...")
+        }
+        // 断开 web socket 连接成功触发事件
+        this.websock2.onclose = function () {
+          // alert("连接已关闭...")
+        }
+
+        // 需求响应事件websocket
+        this.websock3 = new WebSocket(window.SITE_CONFIG.wsBaseUrl+token+'/'+'warning'+'/'+'warn')
+        // this.websock3 = new WebSocket("ws://123.207.167.163:9010/ajaxchattest")
+        // 建立 web socket 连接成功触发事件
+        this.websock3.onopen = function () {
+          // 使用 send() 方法发送数据
+          _this.websock3.send('')
+          // alert("数据发送中...")
+        }
+        // WebSocket连接发生错误
+        this.websock3.onerror = function (evt) {
+          // console.log("WebSocket连接发生错误");
+        }
+        // 接收服务端数据时触发事件
+        this.websock3.onmessage = function (evt) {
+          // console.log(evt)
+          _this.clickC = 0
+          _this.clickD = 0
+          _this.urgentDatas = JSON.parse(evt.data).size
+          /* _this.urgentData = JSON.parse(evt.data).events
+          _this.nonurgentData = JSON.parse(evt.data).unimport */
+          if(_this.dialogDemandVisible == true) {
+            _this.cc = JSON.parse(evt.data).events
+            _this.dd = JSON.parse(evt.data).unimport
+            // _this.equipmentData = _this.equipmentData.concat(JSON.parse(evt.data).list)
+          }else if(_this.dialogDemandVisible == false){
+            _this.urgentData = JSON.parse(evt.data).events
+            _this.nonurgentData = JSON.parse(evt.data).unimport
+            _this.cc = ''
+            _this.dd = ''
+          }
+          // _this.$options.methods.routers.bind(_this)()
+          // alert("数据已接收...")
+        }
+        // 断开 web socket 连接成功触发事件
+        this.websock3.onclose = function () {
+          // alert("连接已关闭...")
+        }
+      },
+      // 需求响应事件弹出框TAB
+      handleClick(tab, event) {
+        if(tab.$options.propsData.name == 'ungent') {
+          if(this.cc != ''){
+            this.urgentData = this.cc
+          }
+          this.$http({
+            url: this.$http.adornUrl('/device/alarm/urgent'),
+            method: 'post',
+            data: this.$http.adornData({
+              'eventType': 1800
+            })
+          }).then(({data}) => {})
+        }else if(tab.$options.propsData.name == 'nonungent'){
+          if(this.dd != ''){
+            this.nonurgentData = this.dd
+          }
+          this.$http({
+            url: this.$http.adornUrl('/device/alarm/urgent'),
+            method: 'post',
+            data: this.$http.adornData({
+              'eventType': 1801
+            })
+          }).then(({data}) => {})
+        }       
+      },
+      // 查看详情
+      equipmentEdit(index, row) {
+        // console.log(index, row)
+      },
+      ordinaryEdit(index, row) {
+        // console.log(index, row)
+      },
+      urgentEdit (index, row) {
+        // console.log(index, row)
+        this.$router.push({path: '/interactive-non-urgent',query: {id: index.id}})
+        this.dialogDemandVisible = false
+      },
+      nonurgentEdit (index, row) {
+        // console.log(index, row)
+        this.$router.push({path: '/interactive-non-urgent',query: {id: index.id}})
+        this.dialogDemandVisible = false
+      },
+      //  设置首行颜色
+      getRowClass({ row, column, rowIndex, columnIndex }) {
+        if (rowIndex == 0) {
+          return 'background:#edefee;color:#000;font-weight: 700'
+        } else {
+          return ''
+        }
+      }
+    }, 
+    filters: {
+      // 时间戳转换
+      change:function(value) {
+        // console.log(value)
+        return changeTime(value)
+      },
+      change1:function(value) {
+        // console.log(value)
+        return changeTime(value)
+      }
+    },   
+    destroyed () {
+      this.websock1.onclose()
+      this.websock2.onclose()
+      this.websock3.onclose()
+
+    }
+  }
+</script>
+<style scoped>
+  .nav_img1{
+    margin-left: 180px;
+  }
+  .site-navbar__menu{
+    background-color: $navbar--background-color;
+  }
+/* .item {
+  margin-top: 10px;
+  margin-right: 40px;
+} */
+
+.site-navbar__avatar .el-dropdown-link span{
+  padding-left: 5px
+}
+.el-pagination {
+  text-align: right
+}
+.el-table__body, .el-table__footer, .el-table__header {
+  width: 100% !important;
+}
+.dialogTable {
+  border-spacing: 0
+}
+.dialogTable, .dialogTable thead, .dialogTable tbody {
+  width: 100%;
+  border: 1px solid #ccc;
+  text-align: center
+}
+.dialogTable thead tr td{
+  background-color: #ccc
+}
+.dialogTable thead tr td, .dialogTable tbody tr td{
+  border-right: 1px solid #ccc;
+  border-bottom: 1px solid #ccc  
+}
+.dialogTable thead tr, .dialogTable tbody tr{
+  height: 50px;
+}
+.dialogTable thead tr td:nth-last-child(1), .dialogTable tbody tr td:nth-last-child(1){
+  border-right: none
+}
+.dialogTable tbody tr:nth-last-child(1) td{
+  border-bottom: none
+}
+.dialogstyle .el-dialog__body{
+  height: 400px;
+  overflow-y: scroll 
+}
+.el-menu--horizontal>.el-menu-item:not(.is-disabled):hover {
+  background-color: #f7f8f9
+}
+</style>

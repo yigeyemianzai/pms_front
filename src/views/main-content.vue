@@ -1,0 +1,165 @@
+<template>
+  <main class="site-content" :class="{ 'site-content--tabs': $route.meta.isTab }">
+    <!-- 主入口标签页 s -->
+    <el-tabs
+      v-if="$route.meta.isTab"
+      v-model="mainTabsActiveName"
+      :closable="true"
+      @tab-click="selectedTabHandle"
+      @tab-remove="removeTabHandle">
+      <el-dropdown class="site-tabs__tools" :show-timeout="0">
+        <i class="el-icon-arrow-down el-icon--right"></i>
+        <el-dropdown-menu slot="dropdown">
+          <el-dropdown-item @click.native="tabsCloseCurrentHandle" class="dropdown-word">关闭当前标签页</el-dropdown-item>
+          <el-dropdown-item @click.native="tabsCloseOtherHandle" class="dropdown-word">关闭其它标签页</el-dropdown-item>
+          <el-dropdown-item @click.native="tabsCloseAllHandle" class="dropdown-word">关闭全部标签页</el-dropdown-item>
+          <el-dropdown-item @click.native="tabsRefreshCurrentHandle" class="dropdown-word">刷新当前标签页</el-dropdown-item>
+        </el-dropdown-menu>
+      </el-dropdown>
+      <el-tab-pane
+        v-for="item in mainTabs"
+        :key="item.name"
+        :label="item.title"
+        :name="item.name">
+        <el-card :body-style="siteContentViewHeight">
+          <iframe
+            v-if="item.type === 'iframe'"
+            :src="item.iframeUrl"
+            width="100%" height="100%" frameborder="0" scrolling="yes">
+          </iframe>
+          <!-- <keep-alive v-else :max="50"> -->
+            <router-view v-if="item.name === mainTabsActiveName" />
+          <!-- </keep-alive> -->
+        </el-card>
+      </el-tab-pane>
+    </el-tabs>
+    <!-- 主入口标签页 e -->
+    <el-card v-else :body-style="siteContentViewHeight">
+      <keep-alive>
+        <router-view></router-view>
+      </keep-alive>
+    </el-card>
+  </main>
+</template>
+
+<script>
+  import { isURL } from '@/utils/validate'
+  export default {
+    data () {
+      return {
+      }
+    },
+    computed: {
+      documentClientHeight: {
+        get () { return this.$store.state.common.documentClientHeight }
+      },
+      menuActiveName: {
+        get () { return this.$store.state.common.menuActiveName },
+        set (val) { this.$store.commit('common/updateMenuActiveName', val) }
+      },
+      mainTabs: {
+        get () { return this.$store.state.common.mainTabs },
+        set (val) { this.$store.commit('common/updateMainTabs', val) }
+      },
+      mainTabsActiveName: {
+        get () { return this.$store.state.common.mainTabsActiveName },
+        set (val) { this.$store.commit('common/updateMainTabsActiveName', val) }
+      },
+      siteContentViewHeight () {
+        var height = this.documentClientHeight - 50 - 30 - 2
+        if (this.$route.meta.isTab) {
+          height -= 40
+          return isURL(this.$route.meta.iframeUrl) ? { height: height + 'px' } : { minHeight: height + 'px' }
+        }
+        return { minHeight: height + 'px' }
+      }
+    },
+    watch: {
+    },
+    methods: {
+      // tabs, 选中tab
+      selectedTabHandle (tab) {
+        tab = this.mainTabs.filter(item => item.name === tab.name)
+        if (tab.length >= 1) {
+          this.$nextTick(() => {
+            this.$router.push({ name: tab[0].name, query: tab[0].query, params: tab[0].params })
+          })
+        }
+      },
+      // tabs, 删除tab
+      removeTabHandle (tabName,flag = null) {
+        let newTabs = []
+        newTabs = this.mainTabs.filter(item => item.name !== tabName)
+        // console.log(newTabs)
+
+        if (newTabs.length >= 1) {
+          this.mainTabs = newTabs
+          // 当前选中tab被删除
+          if (tabName === this.mainTabsActiveName) {
+            let tab = newTabs[newTabs.length - 1]
+            this.$router.push({ name: tab.name, query: tab.query, params: tab.params }, () => {
+              this.mainTabsActiveName = this.$route.name
+            })
+          }
+          // console.log(this.mainTabsActiveName)
+          // console.log(this.menuActiveName)
+        } else {
+          // this.mainTabs = this.mainTabs.filter(item => item.name === 'index')
+          // this.menuActiveName = ''
+          if(flag == '1') {
+            this.$router.push({ name: 'main' })
+          } 
+        }
+      },
+      // tabs, 关闭当前
+      tabsCloseCurrentHandle () {
+        // console.log(this.mainTabs)
+        if(this.mainTabs.length > 1) {
+          this.removeTabHandle(this.mainTabsActiveName)
+        }       
+      },
+      // tabs, 关闭其它
+      tabsCloseOtherHandle () {
+        // let a = this.mainTabs.filter(item => item.name === 'index'),
+        let b = this.mainTabs.filter(item => item.name === this.mainTabsActiveName)
+        if(this.mainTabs.length != 1){
+          this.mainTabs = b
+        }
+        
+        // this.mainTabs = this.mainTabs.filter(item => item.name === this.mainTabsActiveName)
+      },
+      // tabs, 关闭全部
+      tabsCloseAllHandle () {
+        this.mainTabs = this.mainTabs.filter(item => item.name === 'index')
+        this.menuActiveName = ''
+        this.$router.push({ name: 'main' })
+      },
+      // tabs, 刷新当前
+      tabsRefreshCurrentHandle () {
+        // console.log(this.mainTabs)
+        // if(this.mainTabs.length == 1) {
+        //   this.$nextTick(() => {
+        //     this.$router.replace('/' + this.mainTabs[0].name)
+        //   })
+        // } else {
+          let tab = this.$route
+          this.removeTabHandle(tab.name,'1')
+          this.$nextTick(() => {
+            this.$router.push({ name: tab.name})
+          })
+        // }
+        
+      }
+    }
+  }
+</script>
+<style>
+.el-dropdown-menu.is-active, .el-dropdown-menu__item:not(.is-disabled):hover {
+  color: #fff;
+  background: -webkit-linear-gradient(left, #2ea2f7 , #8866fe); /* Safari 5.1 - 6.0 */
+  background: -o-linear-gradient(right, #2ea2f7 , #8866fe); /* Opera 11.1 - 12.0 */
+  background: -moz-linear-gradient(right, #2ea2f7 , #8866fe); /* Firefox 3.6 - 15 */
+  background: linear-gradient(to right, #2ea2f7 , #8866fe); /* 标准的语法 */
+}
+</style>
+

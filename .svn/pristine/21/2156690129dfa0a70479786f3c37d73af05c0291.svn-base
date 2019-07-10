@@ -1,0 +1,1981 @@
+<template>
+  <div class="data_sc">
+    <div class="leftDiv">
+      <el-tree :props="props1" ref="tree" :load="loadNode" lazy node-key="id" highlight-current @node-click="handleNodeClick" :expand-on-click-node="false">
+        <div class="custom-tree-node" slot-scope="{ node, data}">
+          <span>
+              <i :class="{build:data.voType==2,floor:data.voType==3,room:data.voType==4}"></i>{{ node.label }}
+          </span>
+          <!-- <span v-if="!data.leaf"><i :class="{'tree-expand':(!node.expanded),'shrink':node.expanded}"></i></span>       -->
+      </div>
+      </el-tree>
+    </div>
+    <div class="rightDiv">
+      <el-form :inline="true" :model="dataForm" @keyup.enter.native="getDataList()" class="device-form">
+          <el-form-item>
+              <el-cascader :options="sysOptons" v-model="conSys"  change-on-select 
+              placeholder="选择系统" clearable>
+            </el-cascader>
+            </el-form-item>
+          <el-form-item >
+              <el-select v-model="statisticsType" placeholder="统计类型" @change="changeStaType">
+                <el-option v-for="item in statisticsType_Options" :key="item.value" :label="item.label" :value="item.value">
+                </el-option>
+              </el-select>
+            </el-form-item>
+        <el-form-item v-if="statisticsType==='2'">
+            <el-select v-model="statisticsFunction" placeholder="统计机能" clearable>
+                <el-option v-for="item in energyfunctionOptions" :key="item.value" :label="item.label" :value="item.value">
+                </el-option>
+              </el-select>
+        </el-form-item>
+        <el-form-item  v-if="statisticsType==='2'">
+            <el-select v-model="energyId" placeholder="能源种类" clearable>
+                <el-option v-for="item in energyOptions" :key="item.value" :label="item.label" :value="item.value">
+                </el-option>
+              </el-select>
+        </el-form-item>
+        <el-form-item v-if="statisticsType==='1'">
+            <el-select v-model="statisticsPoint" placeholder="统计点位" clearable>
+                <el-option v-for="item in statisticsPointOptions" :key="item.value" :label="item.label" :value="item.value">
+                </el-option>
+              </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="success" @click="getDataList('params')">查询</el-button>
+          <el-button v-if="isAuth(OPTAUTH_ADD)" type="primary" @click="addOrUpdateHandle()" :disabled="clickNode===''">新增</el-button>
+          <el-button v-if="isAuth(OPTAUTH_DELETE)" type="danger" @click="deleteHandle()" :disabled="dataListSelections.length <= 0">批量删除</el-button>
+        </el-form-item>
+      </el-form>
+    <!-- 统计配置表格列表 -->
+      <el-table :data="dataList" border v-loading="dataListLoading" @selection-change="selectionChangeHandle" max-height="700" :row-class-name="tableRowClassName">
+        <el-table-column type="selection" header-align="center" align="center" width="50">
+        </el-table-column>
+        <el-table-column type="index" header-align="center" align="center" width="80" label="序号" fixed="left">
+        </el-table-column>
+        <!-- <el-table-column prop="scId" header-align="center" align="center" label="统计配置标识">
+        </el-table-column> -->
+        <el-table-column prop="statisticsType" header-align="center" align="center" label="统计类型" :formatter="staType">
+        </el-table-column>
+        <el-table-column prop="statisticsName" header-align="center" align="center" label="统计名称" width="250">
+          </el-table-column>
+        <el-table-column prop="statisticsObjType" header-align="center" align="center" label="对象类型" :formatter="objType">
+        </el-table-column>
+        <el-table-column prop="statisticsObjName" header-align="center" align="center" label="对象名称" width="110">
+        </el-table-column>
+        <el-table-column prop="statisticsFunction" header-align="center" align="center" label="统计机能" v-if="statisticsType == 2" :formatter="staFunction">
+          </el-table-column>
+        <el-table-column prop="energyName" header-align="center" align="center" label="能源种类" v-if="statisticsType == 2">
+          </el-table-column>
+        <el-table-column prop="statisticsPointName" header-align="center" align="center" label="统计点位">
+        </el-table-column>
+        <!-- <el-table-column prop="statisticsPeriod" header-align="center" align="center" label="统计周期" :formatter="period">
+        </el-table-column> -->
+        <el-table-column prop="statisticsStepSize" header-align="center" align="center" label="统计步长">
+        </el-table-column>
+        <el-table-column prop="statisticsCoeffcient" header-align="center" align="center" label="统计系数">
+        </el-table-column>
+        <el-table-column fixed="right" header-align="center" align="center" width="120" label="操作">
+          <template slot-scope="scope">
+            <el-tooltip class="item" effect="dark" content="修改" placement="top">  
+              <el-button v-if="isAuth(OPTAUTH_UPDATE)" type="text" size="small" @click="addOrUpdateHandle(scope.row.scId,scope.row.statisticsObjType)"><i class="el-icon-edit-outline istyle"></i></el-button>
+            </el-tooltip>
+            <el-tooltip class="item" effect="dark" content="删除" placement="top">  
+              <el-button v-if="isAuth(OPTAUTH_DELETE)" type="text" size="small" @click="deleteHandle(scope.row.scId)"><i class="el-icon-delete istyle"></i></el-button>
+            </el-tooltip>
+            <el-tooltip class="item" effect="dark" content="统计配置" placement="top">  
+              <el-button v-if="isAuth(OPTAUTH_UPDATE)" type="text" size="small" @click="detailHandle(scope.row.scId,scope.row.statisticsObjId,scope.row.statisticsObjType,scope.row.statisticsName,scope.row.statisticsType)"><i class="el-icon-setting istyle"></i></el-button>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-pagination @size-change="sizeChangeHandle" @current-change="currentChangeHandle" :current-page="pageIndex"
+      :page-sizes="[10, 20, 50, 100]" :page-size="pageSize" :total="totalPage" layout="total, sizes, prev, pager, next, jumper" class="main_page">
+    </el-pagination>
+    </div>
+    
+    <!-- <div class="clearfix"></div> -->
+   
+    <!-- 统计新增/修改 -->
+    <el-dialog :title="!dataForm.id ? '新增' : '修改'" :close-on-click-modal="false" :visible.sync="visible" width="35.66%"
+      class="rdialogs">
+      <el-form :model="dataForm" :rules="dataRule" ref="dataForm" @keyup.enter.native="dataFormSubmit()" class="rel-form">
+        <el-form-item label="统计类型" prop="statisticsType" class="rel-form-item">
+          <el-select v-model="dataForm.statisticsType" placeholder="请选择">
+            <el-option v-for="item in statisticsType_Options" :key="item.value" :label="item.label" :value="item.value">
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="对象类型" prop="statisticsObjType" class="rel-form-item">
+          <el-select v-model="dataForm.statisticsObjType" placeholder="请选择" :disabled="true">
+            <el-option v-for="item in statisticsObjType_SYSTEM_Options" :key="item.value" :label="item.label" :value="item.value">
+            </el-option>
+          </el-select>
+          <!-- <el-input
+          placeholder=""
+          v-model="dataForm.statisticsObjType"
+          :disabled="true">
+          </el-input> -->
+        </el-form-item>
+        <el-form-item label="统计对象" prop="statisticsObjName" class="rel-form-item">
+          <!-- <el-select v-model="dataForm.statisticsObjName" placeholder="请选择">
+            <el-option v-for="item in dataForm.statisticsObjName_Options" :key="item.value" :label="item.label" :value="item.value">
+            </el-option>
+          </el-select> -->
+          <el-input
+          placeholder=""
+          v-model="dataForm.statisticsObjName"
+          :disabled="true">
+          </el-input>
+        </el-form-item>
+        <el-form-item label="系统" prop="selectedSys" class="rel-form-item">
+            <el-cascader :options="sysOptons" v-model="dataForm.selectedSys" @change="handleChange3" change-on-select clearable
+            placeholder="选择系统" >
+          </el-cascader>
+        </el-form-item>
+        <el-form-item label="统计机能" prop="statisticsFunction" v-if="dataForm.statisticsType ==2" class="rel-form-item">
+            <el-select v-model="dataForm.statisticsFunction" placeholder="请选择"  clearable @change="getenergyId">
+              <el-option  v-for="item in energyfunctionOptions" :key="item.value" :label="item.label" :value="item.value">
+              </el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="能源种类" prop="energyId" v-if="dataForm.statisticsType ==2" class="rel-form-item">
+              <el-select v-model="dataForm.energyId" placeholder="请选择" clearable>
+                <el-option v-for="item in energyOptions" :key="item.value" :label="item.label" :value="item.value">
+                </el-option>
+              </el-select>
+            </el-form-item>
+        <el-form-item label="统计点位" prop="statisticsPoint" v-if="dataForm.statisticsType ==1" class="rel-form-item">
+          <el-select v-model="dataForm.statisticsPoint" placeholder="请选择">
+            <el-option v-for="item in statisticsPointOptions" :key="item.value" :label="item.label" :value="item.value">
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <!-- <el-form-item label="统计周期" prop="statisticsPeriod">
+          <el-radio-group v-model="dataForm.statisticsPeriod" @change="changeRadios">
+            <el-radio v-if="dataForm.statisticsType==1" :label="1">秒</el-radio>
+            <el-radio v-if="dataForm.statisticsType==1" :label="2">分</el-radio>
+            <el-radio v-if="dataForm.statisticsType==2" :label="3">小时</el-radio>
+            <el-radio v-if="dataForm.statisticsType==2" :label="4">天</el-radio>
+            <el-radio v-if="dataForm.statisticsType==2" :label="5">周</el-radio>
+            <el-radio v-if="dataForm.statisticsType==2" :label="6">月</el-radio>
+            <el-radio v-if="dataForm.statisticsType==2" :label="7">年</el-radio>
+          </el-radio-group>
+        </el-form-item> -->
+        <el-form-item label="统计步长" prop="statisticsStepSize" class="rel-form-item step">
+          <!-- <el-select v-model="dataForm.statisticsStepSize" placeholder="请选择">
+            <el-option v-for="item in timeOptions[dataForm.statisticsPeriod-1]" :key="item.value" :label="item.label"
+            <el-option v-for="item in timeOptions" :key="item.value" :label="item.label"
+              :value="item.value">
+            </el-option>
+          </el-select> -->
+          <!-- <el-input-number v-model="dataForm.statisticsStepSize" ></el-input-number> -->
+          <el-select v-model="defaultValue" placeholder="请选择" clearable v-if="dataForm.statisticsType==1" @change="getStepSizeValue">
+                <el-option v-for="item in loadStepSize" :key="item.value" :label="item.label" :value="item.value">
+                </el-option>
+          </el-select>
+
+          <!-- <el-input-number v-model="dataForm.statisticsStepSize" v-if="dataForm.statisticsType==2"></el-input-number> -->
+          <el-input v-model="dataForm.statisticsStepSize" v-if="dataForm.statisticsType==2" style="width:52%;"></el-input>
+
+          &nbsp;&nbsp;&nbsp;<span v-if="dataForm.statisticsType==1 ">(秒)</span><span v-if="dataForm.statisticsType==2 ">(时/周/日/月/年)</span>
+        </el-form-item>
+        <el-form-item label="统计系数" prop="statisticsCoeffcient" class="rel-form-item">
+          <el-input-number v-model="dataForm.statisticsCoeffcient" :precision="2" :step="0.1" :max="10"></el-input-number>
+        </el-form-item>
+
+      </el-form>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="visible = false">取消</el-button>
+        <el-button type="primary" @click="dataFormSubmit()">确定</el-button>
+      </span>
+    </el-dialog>
+    <!-- 对象选择 -->
+    <el-dialog title="对象选择" :close-on-click-modal="false" :visible.sync="objVisible" width="27.66%"
+      class="rdialog">
+        <el-form :model="objDataForm" ref="objDataForm" @keyup.enter.native="objDataFormSubmit()" class="rel-form">
+          <el-form-item label="参算类型" prop="calcObjType" class="rel-form-item">
+            <el-select v-model="objDataForm.calcObjType" placeholder="请选择">
+              <el-option v-for="item in calcObjTypeOptions" :key="item.value" :label="item.label" :value="item.value">
+              </el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="对象类型" prop="statisticsObjType" class="rel-form-item">
+            <el-select v-model="objDataForm.statisticsObjType" placeholder="请选择" >
+              <el-option v-for="item in statisticsObjOptions" :key="item.value" :label="item.label" :value="item.value">
+              </el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="组织机构" prop="selectedOrg" class="rel-form-item">
+              <el-cascader :options="conOrgOption" v-model="objDataForm.selectedOrg" @change="conditionOrg" change-on-select placeholder="选择组织机构" clearable>
+                </el-cascader>
+          </el-form-item>
+          <el-form-item label="站点" prop="selectedSite" class="rel-form-item">
+              <el-select v-model="objDataForm.selectedSite" placeholder="选择站点"  @change="conditionSite" clearable :disabled="objDataForm.statisticsObjType==1">
+                  <el-option v-for="item in conSiteOption" :key="item.value" :label="item.label" :value="item.value">
+                  </el-option>
+                </el-select>
+          </el-form-item>
+          <el-form-item label="楼层/房间" prop="selectedFloor" class="rel-form-item">
+              <el-cascader :options="conFloorOption" v-model="objDataForm.selectedFloor" placeholder="选择楼层/房间" clearable :disabled="objDataForm.statisticsObjType!='3' && objDataForm.statisticsObjType!='4' ">
+              </el-cascader>
+          </el-form-item>
+            
+          <el-form-item label="系统" prop="selectedSys" v-if="objDataForm.calcObjType==2" class="rel-form-item">
+              <el-cascader :options="sysOptons" v-model="objDataForm.selectedSys" @change="handleChange3" change-on-select 
+              placeholder="选择系统" clearable>
+            </el-cascader>
+          </el-form-item>
+          
+  
+        </el-form>
+        <span slot="footer" class="dialog-footer">
+          <el-button @click="objVisible = false">取消</el-button>
+          <el-button type="primary" @click="objDataFormSubmit()">确定</el-button>
+        </span>
+      </el-dialog>
+       <!-- 参算 -->
+    <el-dialog title="参算" :close-on-click-modal="false" :visible.sync="calVisible" width="27.66%"
+      class="rdialog">
+        <el-form :model="calDataForm" ref="calDataForm" @keyup.enter.native="dataFormSubmit()" class="rel-form">
+          <el-form-item label="计算方式" prop="calcSign" class="rel-form-item">
+            <el-select v-model="calDataForm.calcSign" placeholder="请选择计算方式">
+              <el-option v-for="item in calcSignOptions" :key="item.value" :label="item.label" :value="item.value">
+              </el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="计算方法" prop="calcClassMethod" class="rel-form-item">
+            <!-- <el-select v-model="calDataForm.calcClassMethod" placeholder="请选择计算方式">
+              <el-option v-for="item in calcClassMethodOptions" :key="item.value" :label="item.label" :value="item.value">
+              </el-option>
+            </el-select> -->
+            <!-- <el-input-number v-model="calDataForm.calcClassMethod"></el-input-number> -->
+            <el-input v-model="calDataForm.calcClassMethod" placeholder=""></el-input>
+          </el-form-item>
+          <el-form-item label="系数" prop="calcCoeffcient" class="rel-form-item">
+              <el-input-number v-model="calDataForm.calcCoeffcient" :precision="2" :step="0.1" :max="10"></el-input-number>
+            </el-form-item>
+          <!-- <el-form-item label="参算点位" prop="calPoints">
+            <el-select v-model="calDataForm.calPoints" placeholder="请选择">
+              <el-option v-for="item in statisticsObjOptions" :key="item.value" :label="item.label" :value="item.value">
+              </el-option>
+            </el-select>
+          </el-form-item> -->
+        </el-form>
+        <span slot="footer" class="dialog-footer">
+          <el-button @click="calVisible = false">取消</el-button>
+          <el-button type="primary" @click="calDataFormSubmit()">确定</el-button>
+        </span>
+      </el-dialog>
+    <!-- 统计配置明细表格列表 -->
+    <el-dialog :title="''+ equipTypeName" :close-on-click-modal="false" ref="infoForm" :visible.sync="infoVisible" class="dialogDiv treeDialog">
+      <div class="where">
+          <el-button v-if="isAuth(OPTAUTH_ADD)" type="primary" @click="selectObj()" size="small">对象选择</el-button>
+          <el-button v-if="isAuth(OPTAUTH_ADD)" type="primary" @click="calcObjTypeHandlue()" size="small" :disabled="objListSelections.length <= 0">参算</el-button>
+        <el-table :data="objList"  v-loading="objListLoading" @selection-change="objSelectionChangeHandle" class="objTable">
+            <el-table-column type="selection" header-align="center" align="center" width="40">
+              </el-table-column>
+              <el-table-column prop="name" header-align="center" align="center" label="对象名称">
+                </el-table-column>
+
+        </el-table>
+      </div>
+      <div class="rTab">
+        <div class="smtool">
+            <el-select v-model="calcObjType" placeholder="请选择参算类型" size="small" clearable>
+                <el-option v-for="item in calcObjTypeOptions" :key="item.value" :label="item.label" :value="item.value">
+                </el-option>
+              </el-select>
+            <el-button   v-if="isAuth(OPTAUTH_ADD)" size="small" @click="detailHandle(null,null,null,null,null,'1')">查询</el-button>
+          <!-- <el-button v-if="isAuth(OPTAUTH_ADD)" type="primary" @click="addOrUpdateDetail()" size="small">新增</el-button> -->
+          <el-button v-if="isAuth(OPTAUTH_DELETE)" type="danger" @click="deleteDetail()" :disabled="detailListSelections.length <= 0"
+            size="small">批量删除</el-button>
+        </div>
+        <el-table :data="detailList" border v-loading="dataListLoading2" @selection-change="selectionChangeHandle2">
+          <el-table-column type="selection" header-align="center" align="center" width="50">
+          </el-table-column>
+          <el-table-column type="index" header-align="center" align="center" width="60" label="序号">
+          </el-table-column>
+          <!-- <el-table-column prop="scId" header-align="center" align="center" label="所属统计配置标识">
+          </el-table-column> -->
+          <!-- 参与计算对象类型（1.组织机构，2.站点，3.楼层，4.房间，5.设备，6.子系统，7.系统） -->
+          <el-table-column prop="calcObjType" header-align="center" align="center" label="参算类型" :formatter="ftCalcObjType">
+          </el-table-column>
+          <el-table-column prop="caclObjName" header-align="center" align="center" label="参算对象" width="270" >
+          </el-table-column>
+          <el-table-column prop="takeCalcPoint" header-align="center" align="center" label="参算点位">
+          </el-table-column>
+          <el-table-column prop="calcSign" header-align="center" align="center" label="计算方式" :formatter="ftCalcSign">
+          </el-table-column>
+          <el-table-column prop="calcClassMethod" header-align="center" align="center" label="计算方法" >
+          </el-table-column>
+          <el-table-column prop="calcCoeffcient" header-align="center" align="center" label="系数">
+          </el-table-column>
+
+          <el-table-column fixed="right" header-align="center" align="center" width="80" label="操作">
+            <template slot-scope="scope">
+              <el-tooltip class="item" effect="dark" content="删除" placement="top">
+                <el-button v-if="isAuth(OPTAUTH_DELETE)" type="text" size="small" @click="deleteDetail(scope.row.id)"><i class="el-icon-delete istyle"></i></el-button>
+              </el-tooltip>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+
+      <el-pagination @size-change="sizeChangeHandle2" @current-change="currentChangeHandle2"
+        :current-page="pageIndex2" 
+        :page-sizes="[10, 20, 50, 100]" 
+        :page-size="pageSize2" 
+        :total="totalPage2" 
+        layout="total, sizes, prev, pager, next, jumper" >
+      </el-pagination>
+    </el-dialog>
+    
+  </div>
+</template>
+
+<script>
+  export default {
+    data() {
+      return {
+        isSite:false,
+        calcObjType:"",
+        conSys:[],
+        energyId:null,
+        energyOptions:[],
+        statisticsFunction:"",
+        objList:[],
+        energyIdList: [],
+        loadStepSize: [{"label":"1","value":"1"},{"label":"60","value":"60"},{"label":"300","value":"300"}],
+        defaultValue:'60',
+        conOrgOption:[],
+        conSiteOption:[],
+        conFloorOption:[],
+        statisticsPoint:"",
+        equipTypeName:"",
+        statisticsType:"1",//搜索条件统计类型
+        classMethodOptions:[
+          {label:"求和",value:"1"}
+        ],//计算方法
+        propClass:{
+          label: 'codeName',
+          value:"codeId"
+        },
+        statisticsPointOptions:[
+        {value:"1001",label:"总有功功率"},
+          {value:"1002",label:"供冷负荷"},
+          {value:"1003",label:"供热负荷"},
+        ],
+
+        calcObjTypeOptions:[
+          {value:"1",label:"统计对象"},
+          {value:"2",label:"基础设备"},
+      ],
+      calcSignOptions:[
+      {value:"1",label:"相加"},
+          {value:"2",label:"相减"},
+      ],
+        takeCalcPointOptions:[
+          {value:"1001",label:"总有功功率"},
+          {value:"1002",label:"供冷负荷"},
+          {value:"1003",label:"供热负荷"},
+          {value:"1021",label:"正向总有功电能"},
+          {value:"1022",label:"累计流量"},
+          {value:"1023",label:"累计供冷量"},
+          {value:"1024",label:"累计供热量"},
+          {value:"1025",label:"累计供气量"},
+        ],
+        clickNode2:"",
+        nodeType2:"",
+        nodeName2:"",
+
+        // clickNode3:"",
+
+        currentSatisticsObjId :"",
+        currentStatisticsObjType :"",
+        nodeType:"",
+        detailListSelections: [],
+        // nodeType:"",
+        clickNode: "",
+        nodeName:"",
+        timeOptions:[
+          {value:"60",label:"60"},
+        ],
+       /*  timeOptions: [
+          [
+          {
+            value: '1',
+            label: '1'
+          }, {
+            value: '2',
+            label: '2'
+          }, {
+            value: '3',
+            label: '3'
+          }, {
+            value: '4',
+            label: '4'
+          }, {
+            value: '5',
+            label: '5'
+          }, {
+            value: '10',
+            label: '10'
+          }, {
+            value: '15',
+            label: '15'
+          }, {
+            value: '30',
+            label: '30'
+          }
+        ],
+          [{
+            value: '1',
+            label: '1'
+          }, {
+            value: '2',
+            label: '2'
+          }, {
+            value: '3',
+            label: '3'
+          }, {
+            value: '4',
+            label: '4'
+          }, {
+            value: '5',
+            label: '5'
+          }, {
+            value: '10',
+            label: '10'
+          }, {
+            value: '15',
+            label: '15'
+          }, {
+            value: '30',
+            label: '30'
+          }],
+          [{
+            value: '1',
+            label: '1'
+          }, {
+            value: '2',
+            label: '2'
+          }, {
+            value: '3',
+            label: '3'
+          }, {
+            value: '4',
+            label: '4'
+          }, {
+            value: '5',
+            label: '5'
+          }, {
+            value: '6',
+            label: '6'
+          }, {
+            value: '7',
+            label: '7'
+          }, {
+            value: '8',
+            label: '8'
+          }, {
+            value: '9',
+            label: '9'
+          }, {
+            value: '10',
+            label: '10'
+          }, {
+            value: '11',
+            label: '11'
+          }, {
+            value: '12',
+            label: '12'
+          }, {
+            value: '13',
+            label: '13'
+          }, {
+            value: '14',
+            label: '14'
+          }, {
+            value: '15',
+            label: '15'
+          }, {
+            value: '16',
+            label: '16'
+          }, {
+            value: '17',
+            label: '17'
+          }, {
+            value: '18',
+            label: '18'
+          }, {
+            value: '19',
+            label: '19'
+          }, {
+            value: '20',
+            label: '20'
+          }, {
+            value: '21',
+            label: '21'
+          }, {
+            value: '22',
+            label: '22'
+          }, {
+            value: '23',
+            label: '23'
+          }],
+          [{
+            value: '1',
+            label: '1'
+          }],
+          [{
+            value: '1',
+            label: '1'
+          }],
+          [{
+            value: '1',
+            label: '1'
+          }],
+          [{
+            value: '1',
+            label: '1'
+          }],
+
+        ], */
+        props1: {
+          label: 'name',
+          children: 'zones',
+          isLeaf:  'leaf',
+          type: 'voType'
+        },
+        statisticsType_Options: [{
+          value: '1',
+          label: '负荷统计'
+        }, {
+          value: '2',
+          label: '能耗统计'
+        }],
+        energyfunctionOptions: [
+          {
+          value: '1',
+          label: '用能'
+        }, {
+          value: '2',
+          label: '供能'
+        }, {
+          value: '3',
+          label: '产能'
+        },
+        {
+          value: '4',
+          label: '储能'
+        }],
+       /*  calcObjTypeOptions: [{
+          value: '1',
+          label: '组织机构'
+        }, {
+          value: '2',
+          label: '站点'
+        }, {
+          value: '3',
+          label: '楼层'
+        }, {
+          value: '4',
+          label: '房间'
+        }, {
+          value: '5',
+          label: '设备'
+        }, {
+          value: '6',
+          label: '系统'
+        }, {
+          value: '7',
+          label: '子系统'
+        }], */
+        statisticsObjType_SYSTEM_Options: [
+          {
+          value: '1',
+          label: '组织机构'
+        }, {
+          value: '2',
+          label: '站点'
+        }, {
+          value: '3',
+          label: '楼层'
+        }, {
+          value: '4',
+          label: '房间'
+        }, {
+          value: '5',
+          label: '设备'
+        }, {
+          value: '6',
+          label: '子系统'
+        }, {
+          value: '7',
+          label: '系统'
+        }],
+        statisticsObjOptions:[
+          {
+          value: '1',
+          label: '组织机构'
+        }, {
+          value: '2',
+          label: '站点'
+        }, {
+          value: '3',
+          label: '楼层'
+        }, {
+          value: '4',
+          label: '房间'
+        }],
+        dataList: [],
+        detailList: [],
+        calDataForm:{
+          calcSign:"1",
+          calcObjType:"1",
+          calcObjId:"",
+          statisticsObjType:"1",
+          takeCalcPoint:[],
+          calcCoeffcient:"1.00",
+          calcClassMethod:"1",
+          scId:"",
+
+        },
+        objDataForm:{
+          statisticsType:"",
+          calcObjType:"1",
+          statisticsObjType:"1",
+          selectedOrg:[],
+          selectedSite:"",
+          selectedFloor:[],
+          selectedSys:[]
+
+        },
+        dataForm: {
+          'scId': "",
+          "statisticsType": "1",
+          "statisticsObjId": "",
+          "statisticsObjType": "",
+          "statisticsObjName": "",
+          "statisticsPoint": "",
+          "statisticsPeriod": 2,
+          "statisticsStepSize": "1",
+          "statisticsCoeffcient": "1.00",
+          "statisticsObjName_Options": [],
+          "statisticsPoint_Options": [],
+          "statisticsFunction":"",
+          "energyId": '',
+          "selectedSys": []
+        },
+        detailForm: {
+          'id': '',
+          'scId': "",
+          'calcObjType': "",
+          'calcObjId': "",
+          "caclObjName":"",
+          "takeCalcPoint": "",
+          "calcClassMethod": "1",
+          "calcCoeffcient": 1,
+        },
+        infoForm: [],
+        pageIndex: 1,
+        pageSize: 10,
+        totalPage: 0,
+        pageIndex2: 1,
+        pageSize2: 10,
+        totalPage2: 0,
+        totalCount2: 0,
+        current_typeID: '',
+        dataListLoading: false,
+        dataListLoading2: false,
+        objListLoading:false,
+        dataListSelections: [],
+        detailListSelections: [],
+        objListSelections:[],
+
+        sysOptons: [],
+        selectedOptions4: [],
+        selectedOptions5: [],
+        visible: false, //信息配置
+        infoVisible: false, //详细信息配置
+        detailVisible: false, //统计配置详细信息  修改|增加
+        objVisible:false, //对象选择
+        calVisible:false,//参算
+        dataRule: {
+          statisticsPoint: [{
+            type:"string",
+            required: true,
+            message: '点位不能为空',
+            trigger: 'change'
+          }],
+        },
+        cascaderArr:{}, //系统级联框数组1
+        cascaderArr2:{}, //系统级联框数组2
+        statisticsTypeName: ''
+      }
+    },
+
+    created() {
+      this.getDataList()
+      this.init()
+      if(this.statisticsType.toString() === '1'){
+          this.statisticsTypeName = '负荷统计'
+        }else{
+          this.statisticsTypeName = '能耗统计'
+        }
+    },
+    watch: {
+      'dataForm.statisticsType':function (val) {
+        console.log("val-------"+val)
+        if(val == 2 && !this.dataForm.id) {
+          this.dataForm.statisticsStepSize = 1
+        } else if(val == 1) {
+          this.dataForm.statisticsStepSize = 60
+          this.loadStepSize = [{"label":"1","value":"1"},{"label":"60","value":"60"},{"label":"300","value":"300"}]
+        }
+      }
+    },
+    methods: {
+      getenergyId(value){
+        if(value == 1){//用能
+          this.energyOptions = [{"label":"电","value":"1"},{"label":"水","value":"2"},{"label":"气","value":"3"}]
+        }else if(value == 2){//供能
+          this.energyOptions = [{"label":"气","value":"3"},{"label":"冷","value":"4"},{"label":"热","value":"5"}]
+        }else if(value == 3){//产能
+          this.energyOptions = [{"label":"冷","value":"4"}]
+        }else if(value == 4){//储能
+          this.energyOptions = [{"label":"冷","value":"4"},{"label":"热","value":"5"}]
+        }
+        
+      },
+      getStepSizeValue(value){
+        this.dataForm.statisticsStepSize = value
+      },
+      changeStaType(val){
+        if(this.statisticsType.toString() === '1'){
+          this.statisticsTypeName = '负荷统计'
+        }else{
+          this.statisticsTypeName = '能耗统计'
+        }
+        this.statisticsFunction = ""
+        this.energyId = null
+        this.statisticsPoint = ""
+      },
+      conditionObjType(val){
+        if(val==3){
+
+        }
+      },
+      //根据val值获取到label值
+      getCascaderObj(val,opt) {
+        console.log(val,opt)
+            return val.map(function (value, index, array) {
+                for (var itm of opt) {
+                    if (itm.value == value) { opt = itm.children; return itm; }
+                }
+                return null;
+            })
+          },
+      getObjList(){
+        let id =""
+        if(this.objDataForm.statisticsObjType==1){
+          id=this.objDataForm.selectedOrg.length>0?this.objDataForm.selectedOrg[this.objDataForm.selectedOrg.length-1]:null
+        }else if(this.objDataForm.statisticsObjType==2){
+          id = this.objDataForm.selectedSite?this.objDataForm.selectedSite:null
+        }else if(this.objDataForm.statisticsObjType==3 ){
+          id = this.objDataForm.selectedFloor.length>0?this.objDataForm.selectedFloor[0]:null
+        }else if(this.objDataForm.statisticsObjType==4){
+          id = this.objDataForm.selectedFloor.length>0?this.objDataForm.selectedFloor[1]:null
+        }
+        // orgId :this.objDataForm.selectedOrg.length>0?this.objDataForm.selectedOrg[this.objDataForm.selectedOrg.length-1]:null,
+        //                   stationId :this.objDataForm.selectedSite?this.objDataForm.selectedSite:null,
+        //                   floorId :this.objDataForm.selectedFloor.length>0?this.objDataForm.selectedFloor[this.objDataForm.selectedFloor.length-1]:null,
+        this.$http({
+                      url: this.$http.adornUrl('/base/tstatisticsdetailconfig/listStatisticsObj'),
+                      method: 'post',
+                      data: this.$http.adornData({
+                        // 'page': "1",
+                        // 'limit': "10000",
+                        calcObjType :this.objDataForm.calcObjType,
+                        id: id,
+                        statisticsType : this.objDataForm.calcObjType==1? this.objDataForm.statisticsType:undefined,
+                        systemCode:this.objDataForm.calcObjType==2?this.objDataForm.selectedSys[0]:undefined,
+                        subSystemCode: (this.objDataForm.selectedSys.length>1&&this.objDataForm.calcObjType==2)?this.objDataForm.selectedSys[this.objDataForm.selectedSys.length-1]:undefined,
+                        type : this.objDataForm.statisticsObjType,
+                        
+                      })
+                    }).then(({
+                      data
+                    }) => {
+                      if (data && data.code == 0) {
+                        // console.log(data)
+                        // this.dataList = data.page.list
+                        this.objList = data.page
+                      this.objVisible = false
+
+                        // this.totalPage = data.page.totalCount
+                      } else {
+                        this.objList = []
+                        // this.totalPage = 0
+                        this.$message.error(data.msg)
+                      // this.objVisible = false
+
+                      }
+                      this.objListLoading = false
+                    })
+      },
+      objDataFormSubmit(){
+        this.$refs['objDataForm'].validate((valid) => {
+          if (valid) {
+            this.getObjList()
+            this.calcObjType = this.objDataForm.calcObjType
+          }
+        })
+      },
+      calDataFormSubmit(){
+        this.$refs['calDataForm'].validate((valid) => {
+          if (valid) {
+              let arr=[]
+              for(let i =0;i<this.objListSelections.length;i++){
+                  arr[i]={
+                  scId:this.current_typeID,
+                  calcClassMethod:this.calDataForm.calcClassMethod,
+                  calcCoeffcient : this.calDataForm.calcCoeffcient,
+                  calcObjId : this.objListSelections[i].id,
+                  calcObjType : this.calcObjType,
+                  calcSign: this.calDataForm.calcSign,
+                  takeCalcPoint: this.objListSelections[i].pointId.toString().split(",")[0],
+
+                }
+              }
+              this.$http({
+              url: this.$http.adornUrl('/base/tstatisticsdetailconfig/save'),
+              method: 'post',
+              data: arr
+            }).then(({
+              data
+            }) => {
+              if (data && data.code === 0) {
+                this.calVisible = false
+                    // this.getCalList()
+                  this.detailHandle(this.current_typeID)
+                this.$message({
+                  message: '参算成功',
+                  type: 'success',
+                  duration: 1500,
+                  onClose: () => {
+                    
+                  }
+                })
+                this.calListLoading = true
+              } else {
+                this.$message.error(data.msg)
+              }
+            })
+            
+          }
+        })
+      },
+      conditionOrg(val){
+        if(val==""){
+          this.conSiteOption =[]
+          this.objDataForm.selectedSite =null
+          this.conFloorOption = []
+          this.objDataForm.selectedFloor = []
+        }else{
+          //站点下拉框
+         this.$http({
+                url: this.$http.adornUrl('/admin/tstation/station'),
+                method: 'post',
+                data: this.$http.adornParams({
+                  "orgId":val[val.length-1]
+                })
+              }).then(({
+                data
+              }) => {
+                if (data && data.code === 0) {
+                  this.conSiteOption = data.list
+                }
+              })
+        }
+         
+      },
+       //站点联级框change事件
+       conditionSite(val){
+        //楼层下拉框
+         if(val==""){
+          this.conFloorOption = []
+          this.objDataForm.selectedFloor = []
+         }else{
+          this.$http({
+                url: this.$http.adornUrl('/admin/tfloor/floors'),
+                method: 'post',
+                data: this.$http.adornParams({
+                  "stationId":val
+                })
+              }).then(({
+                data
+              }) => {
+                if (data && data.code === 0) {
+                  if(this.objDataForm.statisticsObjType==='3'){
+                    for(let i=0;i<data.list.length;i++){
+                      data.list[i].children=null
+                    }
+                    this.conFloorOption = data.list                    
+                  }else{
+                    this.conFloorOption = data.list
+                  }
+                }
+              })
+         }
+               
+      },
+      //对象选择
+      selectObj(){
+        this.objVisible = true
+        this.$http({
+           url: this.$http.adornUrl('/admin/tstation/org'),
+           method: 'post',
+           data: this.$http.adornParams({"orgId":this.$store.state.user.orgId})
+         }).then(({
+           data
+         }) => {
+           if (data && data.code === 0) {
+             this.conOrgOption = data.list
+             this.objDataForm.selectedOrg =new Array(this.$store.state.user.orgId)
+           }
+        })
+
+        this.$http({
+                url: this.$http.adornUrl('/admin/tstation/station'),
+                method: 'post',
+                data: this.$http.adornParams({
+                  "orgId":this.$store.state.user.orgId
+                })
+              }).then(({
+                data
+              }) => {
+                if (data && data.code === 0) {
+                  this.conSiteOption = data.list
+                }
+              })
+        
+      },
+      //参算
+      calcObjTypeHandlue(){
+        this.calVisible = true
+        this.$http({
+           url: this.$http.adornUrl('/admin/tstation/org'),
+           method: 'post',
+           data: this.$http.adornParams({"orgId":this.$store.state.user.orgId})
+         }).then(({
+           data
+         }) => {
+           if (data && data.code === 0) {
+             this.conOrgOption = data.list
+             this.objDataForm.selectedOrg =new Array(this.$store.state.user.orgId)
+           }
+        })
+
+      },
+      /* getCascaderObj(val,opt) {
+            return val.map(function (value, index, array) {
+                for (var itm of opt) {
+                    if (itm.value == value) { opt = itm.children; return itm; }
+                }
+                return null;
+            })
+          }, */
+      handleChange3(value) {
+        // this.cascaderArr=this.getCascaderObj(this.selectedOptions4, this.sysOptons);
+        // this.$refs.tree.setCurrentNode([])
+        // this.clickNode = value[value.length-1]
+
+        // this.nodeType = this.cascaderArr[this.cascaderArr.length-1].voType
+        // this.nodeName = this.cascaderArr[this.cascaderArr.length-1].name
+
+      },
+    /*   handleChange4(value) {
+        this.cascaderArr2=this.getCascaderObj(this.selectedOptions5, this.sysOptons);
+
+        this.clickNode2 = value[value.length-1]
+
+        this.nodeType2 = this.cascaderArr2[this.cascaderArr2.length-1].voType
+        this.nodeName2 = this.cascaderArr2[this.cascaderArr2.length-1].name
+
+
+        this.$refs.tree2.setCurrentNode([])
+        this.$refs.tree3.setCurrentNode([])
+      }, */
+
+      //统计配置详细信息
+      detailHandle(id,objId,type,name,staType,pageIndex) {
+        if(pageIndex) {
+          this.pageIndex2 = 1
+        }
+        if(name){
+        this.equipTypeName = this.statisticsTypeName+"-"+name
+        }
+        if(id){
+        // this.detailForm.scId =id
+        this.current_typeID = id
+        }
+        if(objId){
+          this.objList =[]
+          this.calcObjType =""
+          this.currentSatisticsObjId = objId
+        // this.detailForm.calcObjId =objId
+        }
+        if(type){
+          this.currentStatisticsObjType = type
+
+        }
+      if(staType){
+        this.objDataForm.statisticsType = staType
+      }
+        this.infoVisible = true
+        // console.log(this.pageIndex2,this.pageSize2)
+        this.$nextTick(() => {
+          this.$http({
+            url: this.$http.adornUrl('/base/tstatisticsdetailconfig/list'),
+            method: 'post',
+            data: this.$http.adornData({
+              'pageNumber': this.pageIndex2.toString(),
+              'pageSize': this.pageSize2.toString(),
+              "scId": this.current_typeID,
+              "calcObjType":this.calcObjType==""?undefined:parseInt(this.calcObjType),
+            //   "statisticsObjId" : this.clickNode2,
+            // "statisticsObjType" : this.nodeType2,
+            // "calcObjType":this.calcObjType
+            })
+          }).then(({
+            data
+          }) => {
+            if (data && data.code === 0) {
+              // console.log(data)
+              this.detailList = data.page.list
+              // this.totalPage2 = data.page.totalCount
+              this.totalPage2 = data.page.total
+              this.pageIndex2 = data.page.pageNum
+              this.pageSize2 = data.page.pageSize
+              // this.pageIndex2 = data.page.currentPage
+              // this.totalCount2 = data.page.totalCount2
+            } else {
+              this.detailList = []
+              this.totalPage2 = 0
+            }
+            this.dataListLoading2 = false
+          })
+        })
+
+      },
+      //统计配置详细信息  新增|修改
+      addOrUpdateDetail(id) {
+        this.detailVisible = true
+
+          this.detailForm.id = id || 0
+
+          this.detailVisible = true
+          this.$nextTick(() => {
+            if (!this.detailForm.id) {
+              this.$refs['detailForm'].resetFields()
+              // this.detailForm.SORT_NO = this.totalPage2 + 1
+            }
+          })
+
+          if (this.detailForm.id) {
+            
+            /* this.$http({
+              url: this.$http.adornUrl('/admin/codedetail/type/map?codeType=1050'),
+              method: 'post',
+              // data: id
+            }).then(({
+              data
+            }) => {
+
+              if (data && data.code === 0) {
+                this.detailForm.classMethodOptions = data.lists
+                console.log(this.detailForm.classMethodOptions)
+
+
+              }
+            }) */
+            this.$http({
+              url: this.$http.adornUrl('/base/tstatisticsdetailconfig/info/'+id),
+              method: 'post',
+              // data: id
+            }).then(({
+              data
+            }) => {
+
+              if (data && data.code === 0) {
+                this.detailForm.id = data.tStatisticsDetailConfig.id
+                
+                this.detailForm.scId = data.tStatisticsDetailConfig.scId
+                // console.log(this.detailForm.scId)
+                this.detailForm.calcObjType = data.tStatisticsDetailConfig.calcObjType
+                this.detailForm.caclObjName = data.tStatisticsDetailConfig.caclObjName
+                this.detailForm.takeCalcPoint = data.tStatisticsDetailConfig.takeCalcPoint.toString()
+                this.detailForm.calcClassMethod = data.tStatisticsDetailConfig.calcClassMethod
+                this.detailForm.calcCoeffcient = data.tStatisticsDetailConfig.calcCoeffcient
+
+                // this.detailForm.SYSTEM_Options = data.SYSTEM_Options
+                // this.detailForm.FACTORY_Options = data.FACTORY_Options
+
+              }
+            })
+          }else{
+            this.$nextTick(() => {
+              // this.detailForm.scId = this.clickNode2
+            this.detailForm.calcObjType = this.nodeType2
+            this.detailForm.caclObjName = this.nodeName2
+
+
+          })
+            
+          }
+
+
+      },
+      changeRadios(val) {
+        this.dataForm.statisticsStepSize = 1
+
+      },
+      loadNode(node, resolve) {
+        let nodeValue = []
+        if (node.level === 0) {
+          this.$http({
+            url: this.$http.adornUrl('/admin/tequip/organization'),
+            method: 'post',
+            data: this.$http.adornData({
+              "id": null
+            })
+          }).then(({
+            data
+          }) => {
+            if (data && data.code === 0) {
+              nodeValue = data.list
+              return resolve(nodeValue)
+            }
+          })
+        } else {
+          this.cuType = node.data.voType
+          // this.cuId = node.data.id
+          this.$http({
+            url: this.$http.adornUrl('/admin/tequip/organization'),
+            method: 'post',
+            data: this.$http.adornData({
+              "id": node.data.id,
+              "voType": node.data.voType
+            })
+          }).then(({
+            data
+          }) => {
+            if (data && data.code === 0) {
+              return resolve(data.list);
+            }
+          })
+        }
+      },
+      handleNodeClick(data) {
+        // this.selectedOptions4 = []
+        this.clickNode = data.id
+        this.nodeType = data.voType
+        this.nodeName = data.name
+        this.getDataList(1)
+      },
+      //搜索条件数据
+      init() {
+        this.$http({
+          url: this.$http.adornUrl('/admin/tequip/condition/system'),
+          method: 'post',
+          data: this.$http.adornData({
+            "orgId": "-100",
+          })
+
+        }).then(({
+          data
+        }) => {
+          if (data && data.code == 0) {
+            this.sysOptons = data.list
+          }
+        })
+        this.$http({
+                url: this.$http.adornUrl('/admin/tequip/select'),
+                method: 'post',
+                data: this.$http.adornParams({
+                  "equipId": null
+                })
+              }).then(({
+                data
+              }) => {
+                if (data && data.code === 0) {
+                  //下拉框数据
+                  // this.dataForm.statusOptions = data.data.parent
+                  this.energyOptions = data.data.energy
+
+                }
+              })
+        
+      },
+
+      // 获取数据列表
+      getDataList(params) {
+        if(params){
+          this.pageIndex=1
+        }
+        this.dataListLoading = true
+        this.$http({
+          url: this.$http.adornUrl('/base/tstatisticsconfig/list'),
+          method: 'post',
+          data: this.$http.adornData({
+            'pageNumber': this.pageIndex.toString(),
+            'pageSize': this.pageSize.toString(),
+            'entity':JSON.stringify({
+              "statisticsObjId" : this.clickNode?this.clickNode:this.$store.state.user.orgId,
+              "statisticsObjType" : this.nodeType?this.nodeType:"1",
+              "energyId": this.energyId == '' ? null : this.energyId,
+              "statisticsPoint":this.statisticsPoint,
+              "statisticsFunction": this.statisticsFunction,
+              "statisticsType":this.statisticsType,
+              "systemCode" : this.conSys.length==0?null:this.conSys[0],
+              "subSystemCode" : this.conSys.length==0?null:(this.conSys.length==1?null:this.conSys[1]),
+              // "type":this.nodeType?this.nodeType:"1"
+            })
+            
+            
+          })
+        }).then(({
+          data
+        }) => {
+          if (data && data.code == 0) {
+            // console.log(data)
+            // this.dataList = data.page.list
+            this.dataList = data.page.list
+            this.totalPage = data.page.total
+          } else {
+            this.dataList = []
+            this.totalPage = 0
+          }
+          this.dataListLoading = false
+        })
+      },
+      // 每页数
+      sizeChangeHandle(val) {
+        this.pageSize = val
+        this.pageIndex = 1
+        this.getDataList(1)
+      },
+      sizeChangeHandle2(val) {
+        this.pageSize2 = val
+        this.pageIndex2 = 1
+        this.detailHandle(this.current_typeID)
+      },
+      // 当前页
+      currentChangeHandle(val) {
+        this.pageIndex = val
+        this.getDataList()
+      },
+      currentChangeHandle2(val) {
+        this.pageIndex2 = val
+        this.detailHandle(this.current_typeID)
+      },
+      // 多选
+      selectionChangeHandle(val) {
+        this.dataListSelections = val
+      },
+      selectionChangeHandle2(val) {
+        this.detailListSelections = val
+      },
+      objSelectionChangeHandle(val){
+        this.objListSelections = val
+      },
+      // 新增 / 修改
+      addOrUpdateHandle(id) {
+        this.visible = true
+        this.$nextTick(() => {
+          this.dataForm.id = id || 0
+
+          this.visible = true
+          this.$nextTick(() => {
+            if (!this.dataForm.id) {
+              this.$refs['dataForm'].resetFields()
+              this.dataForm.statisticsFunction = null
+              this.dataForm.energyId = null
+            }
+          })
+
+          if (this.dataForm.id) {
+            this.$http({
+              url: this.$http.adornUrl('/base/tstatisticsconfig/info/' + this.dataForm.id),
+              method: 'post',
+              // data: id
+            }).then(({
+              data
+            }) => {
+
+              if (data && data.code === 0) {
+                // console.log(data.tStatisticsConfig)
+                // console.log(this.dataForm)
+                this.dataForm.scId = data.tStatisticsConfig.scId
+                this.dataForm.statisticsType = data.tStatisticsConfig.statisticsType? data.tStatisticsConfig.statisticsType.toString():null
+                this.dataForm.statisticsObjType = data.tStatisticsConfig.statisticsObjType? data.tStatisticsConfig.statisticsObjType.toString():null
+                this.dataForm.statisticsObjId = data.tStatisticsConfig.statisticsObjId
+                this.dataForm.statisticsObjName = data.tStatisticsConfig.statisticsObjName
+                this.dataForm.statisticsPoint = data.tStatisticsConfig.statisticsPoint? data.tStatisticsConfig.statisticsPoint.toString():null
+                this.dataForm.statisticsPointName = data.tStatisticsConfig.statisticsPointName
+                this.dataForm.statisticsFunction = data.tStatisticsConfig.statisticsFunction
+                this.dataForm.energyId = data.tStatisticsConfig.energyId
+                // this.dataForm.statisticsPeriod = data.tStatisticsConfig.statisticsPeriod
+                this.dataForm.statisticsStepSize = data.tStatisticsConfig.statisticsStepSize
+                this.dataForm.statisticsCoeffcient = data.tStatisticsConfig.statisticsCoeffcient
+                if(data.tStatisticsConfig.systemCode==null){
+                  this.dataForm.selectedSys = []
+                }else if(data.tStatisticsConfig.systemCode!=null && data.tStatisticsConfig.subSystemCode==null){
+                  this.dataForm.selectedSys = new Array(data.tStatisticsConfig.systemCode)
+                }else if(data.tStatisticsConfig.systemCode!=null && data.tStatisticsConfig.subSystemCode!=null){
+                  this.dataForm.selectedSys = new Array(data.tStatisticsConfig.systemCode,data.tStatisticsConfig.subSystemCode)
+                }
+                // console.log(this.dataForm.selectedSys)
+
+
+
+              }
+            })
+          } else {
+            this.$nextTick(() => {
+                
+              console.log(this.statisticsFunction)  
+            this.dataForm.energyId = this.energyId
+            this.dataForm.statisticsFunction = this.statisticsFunction
+            this.dataForm.statisticsPoint = this.statisticsPoint
+            this.dataForm.selectedSys =  this.conSys
+            this.dataForm.statisticsType = this.statisticsType
+            this.dataForm.statisticsObjType = this.nodeType
+            this.dataForm.statisticsObjName = this.nodeName
+            this.dataForm.statisticsObjId = this.clickNode
+            })
+          }
+
+        })
+      },
+
+      // 删除
+      deleteHandle(id) {
+        var userIds = id ? [id] : this.dataListSelections.map(item => {
+          return item.scId
+        })
+        this.$confirm(`确定进行${id ? '删除' : '批量删除'}操作?`, '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }).then(() => {
+          this.$http({
+            url: this.$http.adornUrl('/base/tstatisticsconfig/delete'),
+            method: 'post',
+            data: this.$http.adornData(userIds, false)
+          }).then(({
+            data
+          }) => {
+            if (data && data.code === 0) {
+              this.getDataList(1)
+        //           if(params){
+        //   this.pageIndex=1
+        // }
+              this.$message({
+                message: '操作成功',
+                type: 'success',
+                duration: 1500,
+                onClose: () => {
+                  // alert(1)
+                  // this.detailHandle()
+                  
+                }
+              })
+            } else {
+              this.$message.error(data.msg)
+            }
+          })
+        }).catch(() => {})
+      },
+       // 详细配置删除
+       deleteDetail(id) {
+        var ids = id ? [id] : this.detailListSelections.map(item => {
+          return item.id
+        })
+        this.$confirm(`确定对${id ? '删除' : '批量删除'}操作?`, '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }).then(() => {
+          this.$http({
+            url: this.$http.adornUrl('/base/tstatisticsdetailconfig/delete'),
+            method: 'post',
+            data: this.$http.adornData(ids, false)
+          }).then(({
+            data
+          }) => {
+            if (data && data.code === 0) {
+              this.detailHandle(this.current_typeID)
+                  if(params){
+          this.pageIndex=1
+        }
+              this.$message({
+                message: '操作成功',
+                type: 'success',
+                duration: 1500,
+                onClose: () => {
+                  // this.getDataList()
+                  
+                  
+                }
+              })
+            } else {
+              this.$message.error(data.msg)
+            }
+          })
+        }).catch(() => {})
+      },
+      // 统计配置表单提交
+      dataFormSubmit() {
+        let sName = ""
+        // console.log(this.dataForm.selectedSys)
+        if(this.dataForm.selectedSys){
+          if(this.dataForm.selectedSys.length>1){
+            sName+= (this.getCascaderObj(this.dataForm.selectedSys, this.sysOptons)[0].label + "-" + this.getCascaderObj(this.dataForm.selectedSys, this.sysOptons)[1].label)
+                    
+          }else if(this.dataForm.selectedSys.length>0){
+            sName+= this.getCascaderObj(this.dataForm.selectedSys, this.sysOptons)[0].label 
+          }
+        }
+        if(this.dataForm.statisticsType==2){
+          if(this.dataForm.statisticsFunction && this.dataForm.energyId) {
+            sName+= "-" + this.getCascaderObj(new Array(this.dataForm.statisticsFunction), this.energyfunctionOptions)[0].label + "-" + this.getCascaderObj(new Array(this.dataForm.energyId), this.energyOptions)[0].label
+          } else if(this.dataForm.statisticsFunction && !this.dataForm.energyId) {
+            sName+= "-" + this.getCascaderObj(new Array(this.dataForm.statisticsFunction), this.energyfunctionOptions)[0].label
+          } else if(!this.dataForm.statisticsFunction && this.dataForm.energyId) {
+            sName+= "-" + this.getCascaderObj(new Array(this.dataForm.energyId), this.energyOptions)[0].label
+          }
+          
+        }
+        // console.log(sName)
+        this.$refs['dataForm'].validate((valid) => {
+          if (valid) {
+            if (this.dataForm.id) {
+              this.$http({
+                url: this.$http.adornUrl('/base/tstatisticsconfig/update'),
+                method: 'post',
+                data: this.$http.adornData({
+                  scId: this.dataForm.scId,
+                  energyId :this.dataForm.energyId,
+                  statisticsFunction : this.dataForm.statisticsFunction,
+                  statisticsName :sName,
+                  statisticsType: this.dataForm.statisticsType,
+                  statisticsObjType: this.dataForm.statisticsObjType,
+                  statisticsObjId: this.dataForm.statisticsObjId,
+                  // statisticsObjName: this.dataForm.statisticsObjName,
+                  statisticsPoint: this.dataForm.statisticsPoint,
+                  statisticsStepSize: this.dataForm.statisticsStepSize,
+                  statisticsCoeffcient: this.dataForm.statisticsCoeffcient.toString(),
+                  systemCode:this.dataForm.selectedSys[0]?this.dataForm.selectedSys[0]:null,
+                  subSystemCode : this.dataForm.selectedSys.length>1?this.dataForm.selectedSys[this.dataForm.selectedSys.length-1]:null
+                })
+                
+              }).then(({
+                data
+              }) => {
+                if (data && data.code === 0) {
+                  this.visible = false
+                      // this.$emit('refreshDataList')
+                      this.getDataList('1')
+                      /* if(params){
+                        this.pageIndex=1
+                      } */
+                  this.$message({
+                    message: '操作成功',
+                    type: 'success',
+                    duration: 1500,
+                    onClose: () => {
+                      
+                    }
+                  })
+                } else {
+                  this.$message.error(data.msg)
+                }
+              })
+            } else {
+              // console.log(this.dataForm.selectedSys)
+              this.$http({
+                url: this.$http.adornUrl('/base/tstatisticsconfig/save'),
+                method: 'post',
+                data: this.$http.adornData({
+                  // scId: this.dataForm.scId, //  统计配置标识
+                  energyId :this.dataForm.energyId,  // 能源种类标识
+                  statisticsFunction : this.dataForm.statisticsFunction,  // 统计机能
+                  statisticsType: this.dataForm.statisticsType,  // 统计类型（1.负荷统计，2.能耗统计）
+                  statisticsObjType: this.dataForm.statisticsObjType,  // 统计对象类型（1.组织机构，2.站点，3.楼层，4.房间，5.设备，6.子系统，7.系统）
+                  statisticsObjId: this.dataForm.statisticsObjId,  // 统计对象ID
+                  // statisticsObjName: this.dataForm.statisticsObjName,
+                  statisticsPoint: this.dataForm.statisticsPoint,  // 统计点位标识
+                  statisticsStepSize: this.dataForm.statisticsStepSize,  // 统计步长，根据周期决定步长单位
+                  statisticsCoeffcient: this.dataForm.statisticsCoeffcient.toString(),  // 统计系数
+                  systemCode:this.dataForm.selectedSys[0]?this.dataForm.selectedSys[0]:null,  // 系统标识码
+                  subSystemCode : this.dataForm.selectedSys.length>1?this.dataForm.selectedSys[this.dataForm.selectedSys.length-1]:null,  // 子系统标识码
+                  statisticsName : sName  // 统计名称
+                  
+                })
+              }).then(({
+                data
+              }) => {
+                if (data && data.code === 0) {
+                  this.visible = false
+                      // this.$emit('refreshDataList')
+                      this.getDataList('1')
+                      /* if(params){
+                        this.pageIndex=1
+                      } */
+                  this.$message({
+                    message: '操作成功',
+                    type: 'success',
+                    duration: 1500,
+                    onClose: () => {
+                      
+                    }
+                  })
+                } else {
+                  this.$message.error(data.msg)
+                }
+              })
+            }
+
+          }
+        })
+      },
+      /* // 统计配置详细表单提交
+      detailFormSubmit() {
+        this.$refs['detailForm'].validate((valid) => {
+          if (valid) {
+            if(this.detailForm.id){
+              this.$http({
+              url: this.$http.adornUrl('/base/tstatisticsdetailconfig/update'),
+              method: 'post',
+              data: this.$http.adornData({
+                "id":this.detailForm.id,
+                "scId":this.detailForm.scId,
+                "calcObjType":this.detailForm.calcObjType,
+                "calcObjId":this.detailForm.calcObjId,
+                "takeCalcPoint":this.detailForm.takeCalcPoint,
+                "calcClassMethod":this.detailForm.calcClassMethod,
+                "calcCoeffcient":this.detailForm.calcCoeffcient,
+              })
+            }).then(({
+              data
+            }) => {
+              if (data && data.code === 0) {
+                this.$message({
+                  message: '操作成功',
+                  type: 'success',
+                  duration: 1500,
+                  onClose: () => {
+                    this.detailVisible = false
+                    // this.$emit('refreshDataList')
+                    this.detailHandle(this.current_typeID)
+                  }
+                })
+              } else {
+                this.$message.error(data.msg)
+              }
+            })
+            }else{
+              this.$http({
+              url: this.$http.adornUrl('/base/tstatisticsdetailconfig/save'),
+              method: 'post',
+              data: this.$http.adornData({
+                // "id":this.detailForm.id,
+                "scId":this.detailForm.scId,
+                "calcObjType":this.detailForm.calcObjType,
+                "calcObjId":this.detailForm.calcObjId,
+                "takeCalcPoint":this.detailForm.takeCalcPoint,
+                "calcClassMethod":this.detailForm.calcClassMethod,
+                "calcCoeffcient":this.detailForm.calcCoeffcient,
+              })
+            }).then(({
+              data
+            }) => {
+              if (data && data.code === 0) {
+                this.$message({
+                  message: '操作成功',
+                  type: 'success',
+                  duration: 1500,
+                  onClose: () => {
+                    this.detailVisible = false
+                    // this.$emit('refreshDataList')
+                    this.detailHandle(this.current_typeID)
+                  }
+                })
+              } else {
+                this.$message.error(data.msg)
+              }
+            })
+            }
+            
+          }
+        })
+      }, */
+     /*  ftCalcClassMethod(val){
+         if (val.calcClassMethod == 1) {
+          return "求和"
+        }
+      }, */
+      objType(val) {
+        if (val.statisticsObjType === 1) {
+          return "组织机构"
+        } else if (val.statisticsObjType === 2) {
+          return "站点"
+        } else if (val.statisticsObjType === 3) {
+          return "楼层"
+        } else if (val.statisticsObjType === 4) {
+          return "房间"
+        } else if (val.statisticsObjType === 5) {
+          return "设备"
+        } 
+      },
+      staType(val){
+        if (val.statisticsType === 1) {
+          return "负荷统计"
+        } else if (val.statisticsType === 2) {
+          return "能耗统计"
+        }
+      },
+      staFunction(val){
+        if (val.statisticsFunction == 1) {
+          return "用能"
+        } else if (val.statisticsFunction == 2) {
+          return "储能/供能"
+        } else if (val.statisticsFunction == 3) {
+          return "产能"
+        }
+      },
+      ftCalcSign(val){
+        if (val.calcSign === "1") {
+          return "相加"
+        } else if (val.calcSign === "2") {
+          return "相减"
+        } 
+      },
+      /* period(val) {
+        if (val.statisticsPeriod === 1) {
+          return "秒"
+        } else if (val.statisticsPeriod === 2) {
+          return "分钟"
+        } else if (val.statisticsPeriod === 3) {
+          return "小时"
+        } else if (val.statisticsPeriod === 4) {
+          return "天"
+        } else if (val.statisticsPeriod === 5) {
+          return "周"
+        } else if (val.statisticsPeriod === 6) {
+          return "月"
+        } else if (val.statisticsPeriod === 7) {
+          return "年"
+        }
+      }, */
+      ftCalcObjType(val){
+        if (val.calcObjType === 1) {
+          return "统计对象"
+        } else if (val.calcObjType === 2) {
+          return "基础设备"
+        } 
+      }
+    }
+  }
+
+</script>
+<style scoped>
+  .data_sc{
+    height: 100%;
+    width: 100%;
+  }
+  .data_sc >>>.el-tree--highlight-current .el-tree-node.is-current>.el-tree-node__content{
+    color: #1cabf7;
+  }
+  .data_sc >>>.el-tree--highlight-current .el-tree-node.is-current>.el-tree-node__content .build{
+    display: inline-block;
+   background:  url('~@/assets/images/tree-icon11.png') no-repeat;
+   height: 16px;
+   width: 16px;
+   margin-right: 10px;
+   vertical-align: middle;
+   line-height: 16px;
+
+  }
+  .data_sc >>>.is-expanded{
+    /* border-bottom: 2px solid red; */
+  }
+  .data_sc >>>.el-tree--highlight-current .el-tree-node.is-current>.el-tree-node__content .floor{
+    display: inline-block;
+   background:  url('~@/assets/images/tree-icon22.png') no-repeat;
+   height: 16px;
+   width: 16px;
+   margin-right: 10px;
+   vertical-align: middle;
+   line-height: 16px;
+
+  }
+  .data_sc >>>.el-tree--highlight-current .el-tree-node.is-current>.el-tree-node__content .room{
+    display: inline-block;
+   background:  url('~@/assets/images/tree-icon33.png') no-repeat;
+   height: 16px;
+   width: 16px;
+   margin-right: 10px;
+   vertical-align: middle;
+   line-height: 16px;
+
+  }
+  .build{
+    display: inline-block;
+   background:  url('~@/assets/images/tree-icon1.png') no-repeat;
+   height: 16px;
+   width: 16px;
+   line-height: 16px;
+   margin-right: 10px;
+   vertical-align: middle;
+
+  }
+  .floor{
+    display: inline-block;
+   background:  url('~@/assets/images/tree-icon2.png') no-repeat;
+   height: 16px;
+   width: 16px;
+   line-height: 16px;
+   margin-right: 10px;
+   vertical-align: middle;
+  }
+  .room{
+    display: inline-block;
+   background:  url('~@/assets/images/tree-icon3.png') no-repeat;
+   height: 16px;
+   width: 16px;
+   line-height: 16px;
+   margin-right: 10px;
+   vertical-align: middle;
+  }
+  .data_sc >>> .el-tree-node__expand-icon.expanded{
+    /* display: none; */
+  }
+  .data_sc >>> .el-tree-node__expand-icon{
+    /* display: none; */
+  }
+  .tree-expand{
+    /* display: inline-block; */
+    position: absolute;
+    right: 10%;
+    background:  url('~@/assets/images/tree-open.png') no-repeat;
+    height: 15px;
+   width: 15px;
+   /* text-align: right; */
+  }
+  .shrink{
+    position: absolute;
+    right: 10%;
+    background:  url('~@/assets/images/tree-close.png') no-repeat;
+    height: 15px;
+   width: 15px;
+  }
+  .dialogDiv>>>  .el-form-item__error{
+      left: 33%;
+    }
+  .objTable{
+    margin-top: 2%;
+    max-height: 650px;
+    overflow: auto;
+  }
+.main_page{
+  float: right;
+}
+.tree3{
+  background-color: rgba(243, 247, 244, 0.555);
+}
+  .where .el-cascader {
+    margin-bottom: 20px;
+  }
+
+  .where {
+    /* border: 1px red solid; */
+    /* display: inline-block; */
+    /* height: 300px; */
+    width: 22%;
+    float: left;
+    margin-right: 2%;
+  }
+
+  .rTab {
+    width: 75%;
+    /* align-items: right; */
+    /* float: right; */
+    /* text-align:right; */
+    position: relative;
+    right: 0%;
+    display: inline-block;
+  }
+
+  .treeDialog>>>.el-dialog {
+    width: 70%;
+  }
+
+  .smtool {
+    margin: 0 0 20px 0;
+    text-align: right;
+  }
+
+  .el-dialog .el-table {
+    width: 100%;
+    float: none;
+    /* position: static; */
+  }
+
+  /* .el-input-number {
+    width: 220px;
+  } */
+
+  .el-tree,
+  .left_sys {
+    width: 100%;
+    margin-bottom: 20px;
+
+  }
+
+  .leftDiv {
+    width: 12%;
+    height: 800px;
+    padding:5px 0 5px 10px;
+    overflow: auto;
+    display: block;
+    float: left;
+    border: 1px solid rgba(204,204,204, 31%);
+    box-shadow:  5px 5px 16px rgba(204,204,204, 91%), 0px 0px 3px rgba(204,204,204, 91%);
+  }
+
+  .device_firm>>>.el-dialog {
+    height: 60%;
+    /* border: 1px red solid; */
+  }
+
+/*   .el-table {
+    width: 84%;
+    float: right;
+  } */
+  .rightDiv{
+    width: 87%;
+    float: right;
+  }
+  .device-form  .el-form-item {
+    margin-bottom: 0;
+}
+ /*  .dialogDiv>>>.el-form-item__label {
+    width: 40% !important;
+    padding-right: 20px;
+  } */
+
+  .device_firm>>>.expand_info {
+    font-size: 0;
+  }
+
+  .device_firm>>>.el-form--inline .el-form-item label {
+    width: 100px;
+    color: #99a9bf;
+  }
+
+  .device_firm>>>.expand_info .el-form-item {
+    margin-right: 0;
+    margin-bottom: 0;
+    width: 20%;
+  }
+
+  .device_firm>>>.el-dialog .el-dialog__body {
+    height: 70%;
+    overflow: auto;
+    padding: 0 20px;
+    margin-bottom: 30px;
+    margin-top: 30px;
+  }
+
+ /*  .el-dialog form {
+    background-color: #f0f3f3;
+    border-radius: 5px;
+    padding: 30px 0;
+  } */
+
+ /*  .el-dialog form>>>.el-input {
+    width: 220px;
+  } */
+
+  /* .dialogDiv>>>.el-input__inner {
+    text-align: center;
+
+  } */
+
+  .s_title {
+    position: absolute;
+    z-index: 20000;
+    top: -10px;
+    left: 30px;
+  }
+
+  .s_title .first_label {
+    margin-top: 20px;
+  }
+
+</style>
+<style lang="scss" scoped>
+// @import "../../../../assets/scss/_dialog.scss"
+.rdialog {
+    & /deep/ .el-dialog {
+        min-width: 531px
+    }
+    .rel-form {
+        min-width: 481px;
+    }
+    .rel-form-item {
+        display: flex;
+        justify-content: center
+    }
+    & /deep/ .el-form-item__label {
+        width: 36%;
+    }
+    & /deep/ .el-form-item__content{
+        width: 49%;
+    }
+    & /deep/ .el-input-number, & /deep/ .el-input, & /deep/ .el-select, & /deep/ .el-cascader, & /deep/ .el-textarea {
+        width: 74%;
+    }
+    & /deep/ .el-select .el-input, & /deep/ .el-input-number .el-input, & /deep/ .el-cascader .el-input {
+        width: 100%;
+    }
+  }
+.rdialogs {
+    & /deep/ .el-dialog {
+        min-width: 531px
+    }
+    .rel-form {
+        min-width: 481px;
+    }
+    .rel-form-item {
+        display: flex;
+        justify-content: center
+    }
+    & /deep/ .el-form-item__label {
+        width: 20%;
+    }
+    & /deep/ .el-form-item__content{
+        width: 49%;
+    }
+    & /deep/ .el-input-number, & /deep/ .el-input, & /deep/ .el-select, & /deep/ .el-cascader, & /deep/ .el-textarea {
+        width: 60%;
+    }
+    & /deep/ .el-select .el-input, & /deep/ .el-input-number .el-input, & /deep/ .el-cascader .el-input {
+        width: 100%;
+    }
+  }
+</style>

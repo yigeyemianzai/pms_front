@@ -1,0 +1,287 @@
+<template>
+  <el-dialog
+    :title="!dataForm.menuId ? '新增' : '修改'"
+    :close-on-click-modal="false"
+    :visible.sync="visible"
+    :lock-scroll="true"
+    center="center">
+    <el-form :model="dataForm" :rules="dataRule" ref="dataForm" @keyup.enter.native="dataFormSubmit()" label-width="140px">
+    <el-form-item label="菜单名称" prop="name">
+      <el-input v-model="dataForm.name" placeholder="菜单名称"></el-input>
+    </el-form-item>
+    <el-form-item label="所属角色" prop="roleId">
+      <el-select v-model="dataForm.roleId" clearable @clear="clearRoleName" placeholder="请选择角色" disabled>
+        <el-option
+          v-for="item in roleTypes"
+          :key="item.roleId"
+          :label="item.roleName"
+          :value="item.roleId">
+        </el-option>
+      </el-select>
+    </el-form-item>
+    <el-form-item label="关联资源" prop="resId">
+      <el-popover
+        ref="resListPopover"
+        placement="top-left"
+        v-model="popuresvisible"
+        trigger="click">
+        <el-tree
+          :data="resList"
+          :props="resListTreeProps"
+          node-key="resId"
+          ref="resListTree"
+          @current-change="resListTreeCurrentChangeHandle"
+          :default-expand-all="true"
+          :highlight-current="true"
+          :expand-on-click-node="false">
+        </el-tree>
+      </el-popover>
+      <el-input v-model="dataForm.resName" v-popover:resListPopover :readonly="true" clearable @clear='clearResName'></el-input>
+    </el-form-item>
+    <el-form-item label="图标" prop="icon">
+      <el-input v-model="dataForm.icon" placeholder="图标"></el-input>
+    </el-form-item>
+    <el-form-item label="上级菜单" prop="parentId">
+      <el-popover
+        ref="menuListPopover"
+        placement="bottom-start"
+        v-model="popumenuvisible"
+        trigger="click">
+        <el-tree
+          :data="menuList"
+          :props="menuListTreeProps"
+          node-key="menuId"
+          ref="menuListTree"
+          @current-change="menuListTreeCurrentChangeHandle"
+          :default-expand-all="true"
+          :highlight-current="true"
+          :expand-on-click-node="false">
+        </el-tree>
+      </el-popover>
+      <el-input v-model="dataForm.parentName" v-popover:menuListPopover clearable @clear='clearParentName'></el-input>
+    </el-form-item>
+    <el-form-item label="排序" prop="sortNo">
+      <el-input-number v-model="dataForm.sortNo" controls-position="right" :min="0" label="排序号"></el-input-number>
+    </el-form-item>
+    </el-form>
+    <span slot="footer" class="dialog-footer">
+      <el-button @click="visible = false">取消</el-button>
+      <el-button type="primary" @click="dataFormSubmit()">确定</el-button>
+    </span>
+  </el-dialog>
+</template>
+
+<script>
+  export default {
+    data () {
+      return {
+        visible: false,
+        dataForm: {
+          menuId: 0,
+          roleId: null,
+          resId: null,
+          resName: null,
+          name: null,
+          icon: null,
+          parentId: null,
+          parentName: null,
+          sortNo: null
+        },
+        roleTypes: [],
+        menuList: [],
+        menuListTreeProps: {
+          label: 'name',
+          children: 'children'
+        },
+        resList: [],
+        resListTreeProps: {
+          label: 'resName',
+          children: 'children'
+        },
+        popuresvisible: false,
+        popumenuvisible: false,
+        dataRule: {
+          resId: [
+            // { required: true, message: '关联资源不能为空', trigger: 'change' }
+          ],
+          name: [
+            { required: true, message: '菜单名称不能为空', trigger: 'blur' }
+          ],
+          parentName: [
+            { required: true, message: '上级菜单标识不能为空', trigger: 'change' }
+          ],
+          roleId: [
+            { required: true, message: '角色不能为空', trigger: 'blur' }
+          ]
+        }
+      }
+    },
+    methods: {
+      init (id=null,parentId=null,roleId=null) {
+        console.log("parentId="+parentId)
+        console.log(roleId)
+        
+        this.dataForm.menuId = id || 0
+        this.visible = true
+        this.$http({
+          url: this.$http.adornUrl('/sys/resinfo/list'),
+          method: 'get',
+          params: this.$http.adornParams({
+            isValid: '1'   // 0 不显示虚节点； 1显示虚节点
+          })
+        }).then(({data}) => {
+          this.resList = data.list
+        }).then(() => {
+          this.$nextTick(() => {
+            this.$refs['dataForm'].resetFields()
+            this.dataForm.resId = null
+            this.dataForm.parentId = null
+            this.dataForm.resName = null
+            this.dataForm.parentName = null
+          })
+          this.$http({
+            url: this.$http.adornUrl('/sys/roleinfo/list'),
+            method: 'get',
+            params: this.$http.adornParams({
+              'page': 1,
+              'limit': 2000
+            })
+          }).then(({data}) => {
+            if (data && data.code === 0) {
+              this.roleTypes = data.page.list
+            }
+          }).then(() => {
+            this.$http({
+              url: this.$http.adornUrl('/sys/menu/list'),
+              method: 'get',
+              params: this.$http.adornParams({
+                'roleId': roleId.toString()
+              })
+            }).then(({data}) => {
+              this.menuList = data
+            }).then(() => {
+              if (this.dataForm.menuId) {
+                // 修改
+                this.$http({
+                  url: this.$http.adornUrl(`/sys/menu/info/${this.dataForm.menuId}`),
+                  method: 'get',
+                  params: this.$http.adornParams()
+                }).then(({data}) => {
+                  if (data && data.code === 0) {
+                    this.dataForm.roleId = data.sysMenu.roleId
+                    this.dataForm.resId = data.sysMenu.resId
+                    this.dataForm.name = data.sysMenu.name
+                    this.dataForm.icon = data.sysMenu.icon
+                    this.dataForm.parentId = data.sysMenu.parentId
+                    this.dataForm.sortNo = data.sysMenu.sortNo
+                    this.resListTreeSetCurrentNode()
+                    this.menuListTreeSetCurrentNode()
+                  }
+                })
+              }else{
+                if(roleId){
+                  this.dataForm.roleId = roleId
+                }else{
+                  var userInfo = JSON.parse(sessionStorage.getItem('userInfo'))
+                  this.dataForm.roleId = userInfo.roleId
+                }
+                if(parentId){
+                  this.dataForm.parentId = parentId
+                  for(var index in this.menuList){
+                    if(parentId == this.menuList[index].menuId) {
+                      this.dataForm.parentName = this.menuList[index].name
+                    }else{
+                      var childrenList = this.menuList[index].children
+                      for(var k in childrenList){
+                        if(parentId == childrenList[k].menuId) {
+                          this.dataForm.parentName = childrenList[k].name
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            })
+          })
+        })
+      },
+      // 菜单树选中
+      menuListTreeCurrentChangeHandle (data, node) {
+        this.popumenuvisible = false
+        this.dataForm.parentId = data.menuId
+        this.dataForm.parentName = data.name
+      },
+      // 菜单树设置当前选中节点
+      menuListTreeSetCurrentNode () {
+        if (this.dataForm.parentId) {
+          this.$refs.menuListTree.setCurrentKey(this.dataForm.parentId)
+          this.dataForm.parentName = (this.$refs.menuListTree.getCurrentNode() || {})['name']
+        }
+      },
+      // 菜单树选中
+      resListTreeCurrentChangeHandle (data, node) {
+        this.popuresvisible = false
+        this.dataForm.resId = data.resId
+        this.dataForm.resName = data.resName
+      },
+      // 菜单树设置当前选中节点
+      resListTreeSetCurrentNode () {
+        if (this.dataForm.resId) {
+          this.$refs.resListTree.setCurrentKey(this.dataForm.resId)
+          this.dataForm.resName = (this.$refs.resListTree.getCurrentNode() || {})['resName']
+        }
+      },
+      clearParentName () {
+        this.dataForm.parentId = null
+        this.dataForm.parentName = null
+      },
+      clearResName () {
+        this.dataForm.resId = null
+        this.dataForm.resName = null
+      },
+      clearRoleName () {
+        this.dataForm.roleId = null
+      },
+      // 表单提交
+      dataFormSubmit () {
+        this.$refs['dataForm'].validate((valid) => {
+          if (valid) {
+            this.$http({
+              url: this.$http.adornUrl(`/sys/menu/${!this.dataForm.menuId ? 'save' : 'update'}`),
+              method: 'post',
+              data: this.$http.adornData({
+                'menuId': this.dataForm.menuId || undefined,
+                'roleId': this.dataForm.roleId,
+                'resId': this.dataForm.resId,
+                'name': this.dataForm.name,
+                'icon': this.dataForm.icon,
+                'parentId': this.dataForm.parentId,
+                'sortNo': this.dataForm.sortNo
+              })
+            }).then(({data}) => {
+              if (data && data.code === 0) {
+                this.visible = false
+                    this.$emit('refreshDataList')
+                this.$message({
+                  message: '操作成功',
+                  type: 'success',
+                  duration: 1500,
+                  onClose: () => {
+                    
+                  }
+                })
+              } else {
+                this.$message.error(data.msg)
+              }
+            })
+          }
+        })
+      }
+    }
+  }
+</script>
+<style scoped>
+  .el-popover{
+    height: 500px;
+  }
+</style>
